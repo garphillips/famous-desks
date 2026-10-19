@@ -21,7 +21,7 @@ def configure_cycles(scene, samples=128):
     c = scene.cycles
     c.samples = samples
     c.use_adaptive_sampling = True
-    c.adaptive_threshold = 0.03
+    c.adaptive_threshold = 0.02
     c.adaptive_min_samples = 0  # automatic
     c.use_denoising = True
     for attr, value in (("denoiser", "OPENIMAGEDENOISE"), ("denoising_input_passes", "RGB_ALBEDO_NORMAL"),
@@ -39,17 +39,112 @@ def configure_cycles(scene, samples=128):
     c.transmission_bounces = 4
     c.transparent_max_bounces = 16
     c.sample_clamp_direct = 0.0
-    c.sample_clamp_indirect = 4.0
+    c.sample_clamp_indirect = 2.0  # scene-linear; the view exposure lifts it ~16x
     c.blur_glossy = 1.0
     c.caustics_reflective = False
     c.caustics_refractive = False
     c.use_light_tree = True
     scene.view_settings.view_transform = "AgX"
-    scene.view_settings.look = "AgX - Base Contrast"
+    scene.view_settings.look = "AgX - Medium High Contrast"
     scene.render.image_settings.file_format = "PNG"
     scene.render.resolution_percentage = 100
+    build_camera_finish(scene)
     # material/look finishing pass (grain attributes, bevels, lamp glow); once per scene
     finish_scene(scene)
+
+
+# Camera finish, per camera kind: bloom on windows and sun patches, a light
+# vignette, lateral chromatic aberration and film grain. Panoramas get no
+# vignette or aberration (they'd wrap and smear); the plan gets nothing.
+FINISH = {
+    "bloom": 0.06,        # glare strength
+    "bloom_from": 3.0,    # display-referred brightness where bloom starts
+    "vignette": 0.22,     # darkening in the corners
+    "aberration": 0.008,  # lens dispersion
+    "grain": 0.035,       # +- relative noise per pixel
+}
+
+
+def _node(nt, kind, **settings):
+    """New node; each setting is a node property or else an input's default value."""
+    node = nt.nodes.new(kind)
+    for name, value in settings.items():
+        if hasattr(node, name):
+            setattr(node, name, value)
+        else:
+            node.inputs[name].default_value = value
+    return node
+
+
+def build_camera_finish(scene):
+    nt = bpy.data.node_groups.get("camera_finish")
+    if nt:
+        scene.compositing_node_group = nt
+        return nt
+    nt = bpy.data.node_groups.new("camera_finish", "CompositorNodeTree")
+    nt.interface.new_socket("Image", in_out="OUTPUT", socket_type="NodeSocketColor")
+    link = nt.links.new
+    layers = nt.nodes.new("CompositorNodeRLayers")
+    glare = _node(nt, "CompositorNodeGlare", Type="Bloom", Quality="High", Smoothness=0.3, Size=0.7)
+    glare.name = "bloom"
+    link(layers.outputs["Image"], glare.inputs["Image"])
+    lens = _node(nt, "CompositorNodeLensdist", Type="Radial", Distortion=0.0, Jitter=True, Fit=True)
+    lens.name = "aberration"
+    link(glare.outputs["Image"], lens.inputs["Image"])
+
+    # vignette: 1 - k * r^2 (r = distance from the centre, 1 at the corners)
+    coords = nt.nodes.new("CompositorNodeImageCoordinates")
+    link(layers.outputs["Image"], coords.inputs["Image"])
+    centred = _node(nt, "ShaderNodeVectorMath", operation="MULTIPLY_ADD")
+    centred.inputs[1].default_value = (2.0, 2.0, 0.0)
+    centred.inputs[2].default_value = (-1.0, -1.0, 0.0)
+    link(coords.outputs["Normalized"], centred.inputs[0])
+    r2 = _node(nt, "ShaderNodeVectorMath", operation="DOT_PRODUCT")
+    link(centred.outputs[0], r2.inputs[0])
+    link(centred.outputs[0], r2.inputs[1])
+    vig = _node(nt, "ShaderNodeMath", operation="MULTIPLY_ADD")
+    vig.name = "vignette"
+    vig.inputs[2].default_value = 1.0
+    link(r2.outputs["Value"], vig.inputs[0])
+
+    # grain: per-pixel white noise, multiplicative so it sits evenly across the tones
+    noise = nt.nodes.new("ShaderNodeTexWhiteNoise")
+    noise.noise_dimensions = "2D"
+    link(coords.outputs["Pixel"], noise.inputs["Vector"])
+    grain = _node(nt, "ShaderNodeMath", operation="MULTIPLY_ADD")
+    grain.name = "grain"
+    link(noise.outputs["Value"], grain.inputs[0])
+    shade = _node(nt, "ShaderNodeMath", operation="MULTIPLY")
+    link(vig.outputs[0], shade.inputs[0])
+    link(grain.outputs[0], shade.inputs[1])
+    out_mix = _node(nt, "ShaderNodeMix", data_type="RGBA", blend_type="MULTIPLY")
+    out_mix.inputs["Factor"].default_value = 1.0
+    link(lens.outputs["Image"], out_mix.inputs["A"])
+    link(shade.outputs[0], out_mix.inputs["B"])
+    out = nt.nodes.new("NodeGroupOutput")
+    link(out_mix.outputs["Result"], out.inputs[0])
+    scene.compositing_node_group = nt
+    scene.render.use_compositing = True
+    return nt
+
+
+def set_camera_finish(scene, cam):
+    """Tune the finish for this camera (call after its exposure is set)."""
+    nt = scene.compositing_node_group
+    kind = cam.get("kind")
+    scene.render.use_compositing = bool(nt) and kind != "plan"
+    if not nt or kind == "plan":
+        return
+    pano = cam.data.type == "PANO"
+    f = FINISH
+    bloom = nt.nodes["bloom"]
+    # the compositor sees scene-linear light before the view exposure
+    bloom.inputs["Threshold"].default_value = f["bloom_from"] / 2 ** scene.view_settings.exposure
+    bloom.inputs["Strength"].default_value = f["bloom"]
+    nt.nodes["aberration"].inputs["Dispersion"].default_value = 0.0 if pano else f["aberration"]
+    nt.nodes["vignette"].inputs[1].default_value = 0.0 if pano else -f["vignette"] / 2
+    nt.nodes["grain"].inputs[1].default_value = 2 * f["grain"]
+    nt.nodes["grain"].inputs[2].default_value = 1.0 - f["grain"]
 
 
 def render_camera(scene, cam, out_dir, scale=100, filename=None, fmt="PNG"):
@@ -65,6 +160,7 @@ def render_camera(scene, cam, out_dir, scale=100, filename=None, fmt="PNG"):
     if "exposure" in cam:
         scene.view_settings.exposure = cam["exposure"]
     scene.view_settings.exposure += cam.get("brighten", 0.0)
+    set_camera_finish(scene, cam)
     settings = scene.render.image_settings
     settings.file_format = fmt
     if fmt in ("WEBP", "JPEG"):
