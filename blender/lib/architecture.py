@@ -176,9 +176,8 @@ def _breaks(fixed, lo, hi, step, keep=0.08):
 
 
 def _board_edges(x0, x1):
-    """Board edges across the floor. Follows the floorboards material's world-space
-    board function (x/0.19 + 0.22 sin 1.9x + 0.13 sin(4.3x + 1)) so the geometry and
-    any world-projected seams agree."""
+    """Board edges across the floor: about 19 cm boards with gently varying widths.
+    The floor material shades each board from its board_id/board_rand attributes."""
     def f(x):
         return x / 0.19 + 0.22 * math.sin(1.9 * x) + 0.13 * math.sin(4.3 * x + 1.0)
 
