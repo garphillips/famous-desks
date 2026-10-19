@@ -1,9 +1,162 @@
-"""Shared material library. Blockout-level for now; refined in the detail pass."""
+"""Shared material library: procedural node materials, no image textures.
+
+Nothing here uses UVs (Builder meshes have none). Patterns come from:
+- world position, for things that must line up across objects (brick, floorboards);
+- the "grain" point attribute that finish_scene() writes on every mesh: per
+  island (each Builder box/cylinder), a local frame whose X runs along the
+  island's longest axis, plus a random offset, so wood grain follows each board
+  and every piece is cut from a different part of the "log";
+- the "island_rand" point attribute (0..1 per island), for per-object colour
+  variation (books, paper, cardboard).
+
+finish_scene() also adds small bevels to Builder furniture and the optional lamp
+glow. It runs from render.configure_cycles(), so build.py applies it after the
+room script has built everything.
+"""
+
+import math
+import random
 
 import bpy
+import numpy as np
+
+# ----------------------------------------------------------------------------
+# Node graph helpers
+# ----------------------------------------------------------------------------
 
 
-def _base(name):
+class _G:
+    """Tiny helper for building shader node graphs from code."""
+
+    def __init__(self, nt):
+        self.nt = nt
+
+    def node(self, kind, **props):
+        n = self.nt.nodes.new(kind)
+        for k, v in props.items():
+            setattr(n, k, v)
+        return n
+
+    def set(self, sock, val):
+        if isinstance(val, bpy.types.NodeSocket):
+            self.nt.links.new(val, sock)
+            return
+        if isinstance(val, (tuple, list)):
+            if sock.type == "RGBA" and len(val) == 3:
+                val = (*val, 1.0)
+            elif sock.type in ("VALUE", "INT"):
+                raise TypeError(f"vector given for scalar socket {sock.name}")
+        sock.default_value = val
+
+    def inp(self, node, key):
+        for s in node.inputs:
+            if s.identifier == key:
+                return s
+        return node.inputs[key]
+
+    def out(self, node, key):
+        for s in node.outputs:
+            if s.identifier == key:
+                return s
+        return node.outputs[key]
+
+    def math(self, op, a, b=0.0, c=0.0, clamp=False):
+        n = self.node("ShaderNodeMath", operation=op, use_clamp=clamp)
+        self.set(n.inputs[0], a)
+        self.set(n.inputs[1], b)
+        self.set(n.inputs[2], c)
+        return n.outputs[0]
+
+    def vmath(self, op, a, b=(0, 0, 0)):
+        n = self.node("ShaderNodeVectorMath", operation=op)
+        self.set(n.inputs[0], a)
+        self.set(n.inputs[1], b)
+        return n.outputs["Value"] if op in ("LENGTH", "DOT_PRODUCT", "DISTANCE") else n.outputs["Vector"]
+
+    def vec(self, x, y, z):
+        n = self.node("ShaderNodeCombineXYZ")
+        for i, v in enumerate((x, y, z)):
+            self.set(n.inputs[i], v)
+        return n.outputs[0]
+
+    def sep(self, v):
+        n = self.node("ShaderNodeSeparateXYZ")
+        self.set(n.inputs[0], v)
+        return n.outputs[0], n.outputs[1], n.outputs[2]
+
+    def mix(self, fac, a, b, blend="MIX", clamp=True):
+        n = self.node("ShaderNodeMix", data_type="RGBA", blend_type=blend, clamp_result=clamp)
+        self.set(self.inp(n, "Factor_Float"), fac)
+        self.set(self.inp(n, "A_Color"), a)
+        self.set(self.inp(n, "B_Color"), b)
+        return self.out(n, "Result_Color")
+
+    def mixf(self, fac, a, b):
+        n = self.node("ShaderNodeMix", data_type="FLOAT")
+        self.set(self.inp(n, "Factor_Float"), fac)
+        self.set(self.inp(n, "A_Float"), a)
+        self.set(self.inp(n, "B_Float"), b)
+        return self.out(n, "Result_Float")
+
+    def map(self, v, fmin, fmax, tmin=0.0, tmax=1.0, interp="LINEAR"):
+        n = self.node("ShaderNodeMapRange", interpolation_type=interp, clamp=True)
+        self.set(n.inputs["Value"], v)
+        self.set(n.inputs["From Min"], fmin)
+        self.set(n.inputs["From Max"], fmax)
+        self.set(n.inputs["To Min"], tmin)
+        self.set(n.inputs["To Max"], tmax)
+        return n.outputs["Result"]
+
+    def noise(self, vec, scale=1.0, detail=2.0, rough=0.5, distortion=0.0):
+        n = self.node("ShaderNodeTexNoise")
+        self.set(n.inputs["Vector"], vec)
+        self.set(n.inputs["Scale"], scale)
+        self.set(n.inputs["Detail"], detail)
+        self.set(n.inputs["Roughness"], rough)
+        self.set(n.inputs["Distortion"], distortion)
+        return n.outputs["Factor"]
+
+    def white(self, vec):
+        n = self.node("ShaderNodeTexWhiteNoise", noise_dimensions="3D")
+        self.set(n.inputs["Vector"], vec)
+        return n.outputs["Value"], n.outputs["Color"]
+
+    def position(self):
+        return self.node("ShaderNodeNewGeometry").outputs["Position"]
+
+    def normal(self):
+        return self.node("ShaderNodeNewGeometry").outputs["Normal"]
+
+    def obj_coords(self):
+        return self.node("ShaderNodeTexCoord").outputs["Object"]
+
+    def attr(self, name):
+        n = self.node("ShaderNodeAttribute", attribute_type="GEOMETRY", attribute_name=name)
+        return n.outputs["Vector"], n.outputs["Fac"]
+
+    def scale(self, v, s):
+        return self.vmath("MULTIPLY", v, s)
+
+    def bump(self, height, strength=0.3, distance=0.01, normal=None, invert=False):
+        n = self.node("ShaderNodeBump", invert=invert)
+        self.set(n.inputs["Height"], height)
+        self.set(n.inputs["Strength"], strength)
+        self.set(n.inputs["Distance"], distance)
+        if normal is not None:
+            self.set(n.inputs["Normal"], normal)
+        return n.outputs["Normal"]
+
+    def hsv(self, color, hue=0.5, sat=1.0, val=1.0):
+        n = self.node("ShaderNodeHueSaturation")
+        self.set(n.inputs["Hue"], hue)
+        self.set(n.inputs["Saturation"], sat)
+        self.set(n.inputs["Value"], val)
+        self.set(n.inputs["Color"], color)
+        return n.outputs["Color"]
+
+
+def _new(name, viewport_color):
+    """Fresh node material with a Principled BSDF wired to the output."""
     mat = bpy.data.materials.new(name)
     try:
         mat.use_nodes = True
@@ -14,119 +167,555 @@ def _base(name):
     out = nt.nodes.new("ShaderNodeOutputMaterial")
     bsdf = nt.nodes.new("ShaderNodeBsdfPrincipled")
     nt.links.new(bsdf.outputs["BSDF"], out.inputs["Surface"])
-    return mat, nt, bsdf
+    mat.diffuse_color = (*viewport_color[:3], 1)
+    return mat, _G(nt), bsdf
+
+
+def _cached(name, fn):
+    return bpy.data.materials.get(name) or fn(name)
+
+
+def _principled(g, bsdf, **inputs):
+    names = {
+        "color": "Base Color", "rough": "Roughness", "metal": "Metallic", "normal": "Normal",
+        "sheen": "Sheen Weight", "sheen_tint": "Sheen Tint", "sheen_rough": "Sheen Roughness",
+        "coat": "Coat Weight", "coat_rough": "Coat Roughness", "spec": "Specular IOR Level",
+        "emit_color": "Emission Color", "emit": "Emission Strength", "sss": "Subsurface Weight",
+        "sss_radius": "Subsurface Radius", "aniso": "Anisotropic", "ior": "IOR",
+        "transmission": "Transmission Weight", "alpha": "Alpha",
+    }
+    for k, v in inputs.items():
+        g.set(bsdf.inputs[names[k]], v)
+
+
+# ----------------------------------------------------------------------------
+# Simple materials
+# ----------------------------------------------------------------------------
 
 
 def solid(name, color, roughness=0.5, metallic=0.0, emission=0.0):
+    """Flat colour with a whisper of surface noise (kept for ad-hoc materials)."""
     mat = bpy.data.materials.get(name)
     if mat:
         return mat
-    mat, _, bsdf = _base(name)
-    bsdf.inputs["Base Color"].default_value = (*color, 1)
-    bsdf.inputs["Roughness"].default_value = roughness
-    bsdf.inputs["Metallic"].default_value = metallic
+    mat, g, bsdf = _new(name, color)
+    n = g.noise(g.obj_coords(), 60.0, 3.0, 0.6)
+    _principled(g, bsdf, color=color, metal=metallic,
+                rough=g.map(n, 0.3, 0.7, roughness * 0.9, min(1.0, roughness * 1.1)))
     if emission:
-        bsdf.inputs["Emission Color"].default_value = (*color, 1)
-        bsdf.inputs["Emission Strength"].default_value = emission
-    mat.diffuse_color = (*color, 1)
+        _principled(g, bsdf, emit_color=color, emit=emission)
     return mat
 
 
-def _projected(nt, horizontal, vertical):
-    """World-space coordinates projected onto a plane, so patterns line up across separate objects."""
-    geo = nt.nodes.new("ShaderNodeNewGeometry")
-    sep = nt.nodes.new("ShaderNodeSeparateXYZ")
-    comb = nt.nodes.new("ShaderNodeCombineXYZ")
-    nt.links.new(geo.outputs["Position"], sep.inputs[0])
-    nt.links.new(sep.outputs[horizontal], comb.inputs["X"])
-    nt.links.new(sep.outputs[vertical], comb.inputs["Y"])
-    return comb.outputs[0]
+def _plastic(name, color, rough, bump=0.03):
+    mat, g, bsdf = _new(name, color)
+    p = g.obj_coords()
+    peel = g.noise(p, 400.0, 2.0, 0.5)
+    _principled(g, bsdf, color=color, rough=g.map(g.noise(p, 25.0, 2.0), 0.3, 0.7, rough * 0.85, rough * 1.15),
+                normal=g.bump(peel, bump, 0.001))
+    return mat
 
 
-def _brick_pattern(name, horizontal, vertical, width, row, mortar, c1, c2, cm, roughness, bump):
-    mat, nt, bsdf = _base(name)
-    tex = nt.nodes.new("ShaderNodeTexBrick")
-    nt.links.new(_projected(nt, horizontal, vertical), tex.inputs["Vector"])
-    tex.inputs["Scale"].default_value = 1.0
-    tex.inputs["Brick Width"].default_value = width
-    tex.inputs["Row Height"].default_value = row
-    tex.inputs["Mortar Size"].default_value = mortar
-    tex.inputs["Color1"].default_value = (*c1, 1)
-    tex.inputs["Color2"].default_value = (*c2, 1)
-    tex.inputs["Mortar"].default_value = (*cm, 1)
-    nt.links.new(tex.outputs["Color"], bsdf.inputs["Base Color"])
-    bsdf.inputs["Roughness"].default_value = roughness
-    bmp = nt.nodes.new("ShaderNodeBump")
-    bmp.invert = True
-    bmp.inputs["Strength"].default_value = bump
-    nt.links.new(tex.outputs["Fac"], bmp.inputs["Height"])
-    nt.links.new(bmp.outputs["Normal"], bsdf.inputs["Normal"])
-    mat.diffuse_color = (*c1, 1)
+def plaster(name="plaster"):
+    c = (0.80, 0.785, 0.75)
+    mat, g, bsdf = _new(name, c)
+    p = g.position()
+    blotch = g.noise(p, 1.6, 4.0, 0.6)
+    fine = g.noise(p, 90.0, 3.0, 0.6)
+    trowel = g.noise(g.scale(p, (1.0, 1.0, 0.5)), 6.0, 3.0, 0.55, 0.4)
+    col = g.mix(g.map(blotch, 0.35, 0.65, 0.0, 1.0), (0.75, 0.735, 0.70), c)
+    col = g.mix(g.map(fine, 0.4, 0.6, 0.0, 0.25), col, (0.84, 0.83, 0.80))
+    h = g.math("ADD", g.math("MULTIPLY", trowel, 0.6), g.math("MULTIPLY", fine, 0.4))
+    _principled(g, bsdf, color=col, rough=g.map(trowel, 0.3, 0.7, 0.82, 0.95), normal=g.bump(h, 0.06, 0.004))
     return mat
 
 
 def painted_brick(axis):
-    """Whitewashed brick. axis = the world axis the wall runs along ('X' or 'Y')."""
+    """Whitewashed brick, projected in world space so courses line up across wall pieces.
+
+    The projection plane follows the surface normal (X-Z on faces looking north/south,
+    Y-Z on faces looking east/west), so reveals and wall ends get bricks too. The
+    axis argument only keeps the historical material names (brick_x / brick_y).
+    """
     name = f"painted_brick_{axis.lower()}"
-    return bpy.data.materials.get(name) or _brick_pattern(
-        name, axis, "Z", 0.30, 0.085, 0.012,
-        (0.86, 0.85, 0.82), (0.80, 0.79, 0.76), (0.70, 0.69, 0.66), 0.85, 0.35,
-    )
-
-
-def floorboards():
-    return bpy.data.materials.get("floorboards") or _brick_pattern(
-        "floorboards", "Y", "X", 1.9, 0.16, 0.003,
-        (0.36, 0.17, 0.06), (0.30, 0.13, 0.04), (0.08, 0.04, 0.02), 0.35, 0.1,
-    )
-
-
-def glass():
-    mat = bpy.data.materials.get("glass")
+    mat = bpy.data.materials.get(name)
     if mat:
         return mat
-    mat, nt, bsdf = _base("glass")
+    paint = (0.80, 0.79, 0.76)
+    mat, g, bsdf = _new(name, paint)
+    pos = g.position()
+    px, py, pz = g.sep(pos)
+    nx, ny, nz = g.sep(g.normal())
+    use_y = g.math("GREATER_THAN", g.math("ABSOLUTE", nx), g.math("ABSOLUTE", ny))
+    horiz = g.mixf(use_y, px, py)
+    # mortar lines wobble a few mm, like hand-laid courses under thick paint
+    wob = g.noise(pos, 4.0, 2.0, 0.5)
+    wob2 = g.noise(g.vmath("ADD", pos, (5.3, 1.1, 7.7)), 4.0, 2.0, 0.5)
+    u = g.math("ADD", horiz, g.math("MULTIPLY", g.math("SUBTRACT", wob, 0.5), 0.02))
+    v = g.math("ADD", pz, g.math("MULTIPLY", g.math("SUBTRACT", wob2, 0.5), 0.012))
+    brick = g.node("ShaderNodeTexBrick", offset=0.5, offset_frequency=2, squash=1.0, squash_frequency=2)
+    g.set(brick.inputs["Vector"], g.vec(u, v, 0.0))
+    g.set(brick.inputs["Scale"], 1.0)
+    g.set(brick.inputs["Brick Width"], 0.23)
+    g.set(brick.inputs["Row Height"], 0.077)
+    g.set(brick.inputs["Mortar Size"], 0.013)
+    g.set(brick.inputs["Mortar Smooth"], 0.6)
+    g.set(brick.inputs["Bias"], 0.0)
+    g.set(brick.inputs["Color1"], (1.0, 1.0, 1.0))
+    g.set(brick.inputs["Color2"], (0.0, 0.0, 0.0))
+    g.set(brick.inputs["Mortar"], (0.5, 0.5, 0.5))
+    per_brick, _, _ = g.sep(brick.outputs["Color"])  # random 0..1 per brick (0.5 in mortar)
+    mortar = brick.outputs["Factor"]
+
+    # paint colour: per-brick tint, broad blotches where the wash is thinner, fine mottling
+    col = g.mix(per_brick, (0.80, 0.79, 0.76), (0.86, 0.855, 0.83))
+    thin = g.map(g.noise(pos, 1.2, 5.0, 0.65), 0.55, 0.75, 0.0, 0.35)
+    col = g.mix(thin, col, (0.66, 0.64, 0.60))
+    speck = g.noise(pos, 70.0, 3.0, 0.7)
+    col = g.mix(g.map(speck, 0.45, 0.7, 0.0, 0.4), col, (0.70, 0.69, 0.66))
+    col = g.mix(g.math("MULTIPLY", mortar, 0.6), col, (0.72, 0.71, 0.68))
+
+    # relief: recessed mortar, slightly pillowy brick faces, pitted surface
+    face = g.noise(pos, 9.0, 5.0, 0.65)
+    pits = g.noise(pos, 140.0, 2.0, 0.6)
+    h = g.math("SUBTRACT", 1.0, mortar)
+    h = g.math("ADD", h, g.math("MULTIPLY", face, 0.25))
+    h = g.math("ADD", h, g.math("MULTIPLY", pits, 0.12))
+    h = g.math("ADD", h, g.math("MULTIPLY", per_brick, 0.15))
+    _principled(g, bsdf, color=col, rough=g.map(face, 0.3, 0.7, 0.8, 0.95), spec=0.4,
+                normal=g.bump(h, 0.5, 0.01))
+    return mat
+
+
+def floorboards(name="floorboards"):
+    """Wide oak boards running north-south, uneven widths, staggered end joints,
+    every plank its own tone. World-projected (X across boards, Y along)."""
+    mat, g, bsdf = _new(name, (0.36, 0.17, 0.06))
+    x, y, z = g.sep(g.position())
+    # board coordinate: ~19 cm boards whose widths wander +-20%, never a repeat
+    f = g.math("ADD", g.math("DIVIDE", x, 0.19), g.math("MULTIPLY", g.math("SINE", g.math("MULTIPLY", x, 1.9)), 0.22))
+    f = g.math("ADD", f, g.math("MULTIPLY", g.math("SINE", g.math("ADD", g.math("MULTIPLY", x, 4.3), 1.0)), 0.13))
+    board = g.math("FLOOR", f)
+    across = g.math("FRACT", f)
+    r_board, _ = g.white(g.vec(board, 0.0, 0.0))
+    length = g.math("ADD", 1.1, g.math("MULTIPLY", r_board, 1.7))
+    along = g.math("DIVIDE", g.math("ADD", y, g.math("MULTIPLY", r_board, 9.7)), length)
+    piece = g.math("FLOOR", along)
+    along_f = g.math("FRACT", along)
+    r_piece, rc = g.white(g.vec(board, piece, 1.0))
+    r1, r2, r3 = g.sep(rc)
+
+    # seams (in metres from the edge)
+    d_side = g.math("MULTIPLY", g.math("MINIMUM", across, g.math("SUBTRACT", 1.0, across)), 0.19)
+    d_end = g.math("MULTIPLY", g.math("MINIMUM", along_f, g.math("SUBTRACT", 1.0, along_f)), length)
+    seam = g.math("MAXIMUM", g.map(d_side, 0.0, 0.0018, 1.0, 0.0), g.map(d_end, 0.0, 0.0012, 1.0, 0.0))
+
+    # plain-sawn grain: rings around a log axis set back from the board face
+    gy = g.math("ADD", g.math("MULTIPLY", across, 0.19), g.math("MULTIPLY", r1, 0.5))
+    gz = g.math("ADD", 0.06, g.math("MULTIPLY", r2, 0.25))
+    gx = g.math("ADD", y, g.math("MULTIPLY", r3, 40.0))
+    band, pores = _grain(g, gx, gy, gz, rings_per_m=110.0, pore_scale=1.0)
+
+    tone = g.mix(r_piece, (0.30, 0.135, 0.045), (0.46, 0.235, 0.09))
+    tone = g.mix(g.map(r2, 0.75, 1.0, 0.0, 0.6), tone, (0.52, 0.30, 0.13))  # a few pale boards
+    tone = g.mix(g.map(r1, 0.0, 0.18, 0.5, 0.0), tone, (0.20, 0.085, 0.03))  # a few dark ones
+    wood = g.mix(g.math("MULTIPLY", band, 0.45), tone, g.mix(0.5, tone, (0.12, 0.05, 0.015), "MULTIPLY"))
+    wood = g.mix(g.math("MULTIPLY", pores, 0.25), wood, (0.14, 0.06, 0.02))
+    # wear: lighter, duller patches in traffic areas; dust in the seams
+    wear = g.map(g.noise(g.vec(x, y, 0.0), 0.7, 3.0, 0.5), 0.45, 0.7, 0.0, 1.0)
+    wood = g.mix(g.math("MULTIPLY", wear, 0.25), wood, (0.55, 0.33, 0.16))
+    col = g.mix(seam, wood, (0.05, 0.025, 0.01))
+    scuff = g.noise(g.vec(g.math("MULTIPLY", x, 3.0), y, 0.0), 12.0, 4.0, 0.6)
+    rough = g.math("ADD", g.map(r_piece, 0.0, 1.0, 0.24, 0.36), g.math("MULTIPLY", wear, 0.12))
+    rough = g.math("ADD", rough, g.map(scuff, 0.4, 0.7, 0.0, 0.12))
+    h = g.math("SUBTRACT", g.math("MULTIPLY", band, 0.08), g.math("MULTIPLY", seam, 1.0))
+    h = g.math("SUBTRACT", h, g.math("MULTIPLY", pores, 0.12))
+    _principled(g, bsdf, color=col, rough=rough, spec=0.5, normal=g.bump(h, 0.35, 0.003))
+    return mat
+
+
+def _grain(g, gx, gy, gz, rings_per_m=90.0, pore_scale=1.0):
+    """Shared wood figure. gx runs along the grain (m); gy/gz across, offset from the pith.
+    Returns (late-wood band 0..1, pore streaks 0..1)."""
+    wobble = g.noise(g.vec(g.math("MULTIPLY", gx, 0.8), g.math("MULTIPLY", gy, 6.0), g.math("MULTIPLY", gz, 6.0)),
+                     1.0, 3.0, 0.55)
+    r = g.vmath("LENGTH", g.vec(gy, gz, 0.0))
+    rings = g.math("ADD", g.math("MULTIPLY", r, rings_per_m), g.math("MULTIPLY", wobble, 4.0))
+    band = g.math("POWER", g.math("ADD", 0.5, g.math("MULTIPLY", g.math("SINE", g.math("MULTIPLY", rings, 6.2832)), 0.5)), 3.0)
+    pores = g.noise(g.vec(g.math("MULTIPLY", gx, 3.0 * pore_scale), g.math("MULTIPLY", gy, 220.0 * pore_scale),
+                          g.math("MULTIPLY", gz, 220.0 * pore_scale)), 1.0, 2.0, 0.6)
+    pores = g.map(pores, 0.55, 0.8, 0.0, 1.0)
+    return band, pores
+
+
+def wood(name, light, dark, rough=0.5, rings_per_m=80.0, planks=0.0, coat=0.0, age=0.0):
+    """Solid wood following each piece's own grain axis (the 'grain' attribute)."""
+    mat = bpy.data.materials.get(name)
+    if mat:
+        return mat
+    mat, g, bsdf = _new(name, light)
+    gv, _ = g.attr("grain")
+    gx, gy, gz = g.sep(gv)
+    _, rnd = g.attr("island_rand")
+    joint = r_pl = None
+    if planks:
+        # separate boards across the second grain axis (ceiling boards): each
+        # board gets its own figure, offset along the grain and from the pith
+        f = g.math("DIVIDE", g.math("ADD", gy, 50.0), planks)
+        frac = g.math("FRACT", f)
+        e = g.math("MULTIPLY", g.math("MINIMUM", frac, g.math("SUBTRACT", 1.0, frac)), planks)
+        joint = g.map(e, 0.0, 0.004, 1.0, 0.0)
+        r_pl, r_plc = g.white(g.vec(g.math("FLOOR", f), 3.0, 0.0))
+        p1, p2, _ = g.sep(r_plc)
+        gx = g.math("ADD", gx, g.math("MULTIPLY", p1, 37.0))
+        gy = g.math("ADD", g.math("MULTIPLY", frac, planks), g.math("ADD", 0.04, g.math("MULTIPLY", p2, 0.3)))
+    band, pores = _grain(g, gx, gy, gz, rings_per_m)
+    tint = g.map(rnd, 0.0, 1.0, 0.0, 1.0)
+    base = g.mix(tint, light, g.mix(0.35, light, dark))
+    col = g.mix(g.math("MULTIPLY", band, 0.55), base, dark)
+    col = g.mix(g.math("MULTIPLY", pores, 0.3), col, g.mix(0.6, dark, (0.0, 0.0, 0.0)))
+    h = g.math("ADD", g.math("MULTIPLY", band, 0.3), g.math("MULTIPLY", pores, -0.4))
+    if planks:
+        col = g.mix(g.math("MULTIPLY", r_pl, 0.5), col, g.mix(0.5, col, dark))
+        col = g.mix(joint, col, (0.02, 0.01, 0.005))
+        h = g.math("SUBTRACT", h, joint)
+    if age:
+        # old timber: darker weathered patches and checks
+        p = g.position()
+        patches = g.map(g.noise(p, 2.5, 4.0, 0.6), 0.4, 0.7, 0.0, age)
+        col = g.mix(patches, col, g.mix(0.5, dark, (0.05, 0.03, 0.02)))
+        checks = g.map(g.noise(g.vec(g.math("MULTIPLY", gx, 1.0), g.math("MULTIPLY", gy, 60.0),
+                                     g.math("MULTIPLY", gz, 60.0)), 1.0, 2.0, 0.5), 0.72, 0.78, 0.0, 1.0)
+        col = g.mix(g.math("MULTIPLY", checks, 0.6 * age), col, (0.03, 0.015, 0.01))
+        h = g.math("SUBTRACT", h, g.math("MULTIPLY", checks, 1.5 * age))
+    _principled(g, bsdf, color=col, rough=g.map(pores, 0.0, 1.0, rough, min(1.0, rough + 0.15)),
+                coat=coat, coat_rough=0.25, normal=g.bump(h, 0.25, 0.002))
+    return mat
+
+
+def lino(name="lino_green"):
+    c = (0.045, 0.085, 0.06)
+    mat, g, bsdf = _new(name, c)
+    p = g.position()
+    m1 = g.noise(p, 9.0, 6.0, 0.7)
+    m2 = g.noise(p, 2.0, 3.0, 0.5)
+    col = g.mix(g.map(m1, 0.35, 0.65), (0.035, 0.07, 0.05), (0.06, 0.105, 0.075))
+    col = g.mix(g.map(m2, 0.4, 0.7, 0.0, 0.3), col, (0.08, 0.10, 0.08))
+    _principled(g, bsdf, color=col, rough=g.map(m2, 0.3, 0.7, 0.38, 0.55), normal=g.bump(m1, 0.05, 0.002))
+    return mat
+
+
+def steel_black(name="steel_black"):
+    """Painted black steel (window sections): soft sheen, slight orange-peel and wear."""
+    mat, g, bsdf = _new(name, (0.015, 0.015, 0.015))
+    p = g.position()
+    peel = g.noise(p, 300.0, 2.0, 0.5)
+    var = g.noise(p, 8.0, 3.0, 0.6)
+    col = g.mix(g.map(var, 0.4, 0.7, 0.0, 1.0), (0.012, 0.012, 0.013), (0.03, 0.03, 0.03))
+    _principled(g, bsdf, color=col, metal=0.15, rough=g.map(var, 0.3, 0.7, 0.28, 0.45), coat=0.2,
+                coat_rough=0.3, normal=g.bump(peel, 0.05, 0.001))
+    return mat
+
+
+def satin_paint(name, color, rough=0.32):
+    mat, g, bsdf = _new(name, color)
+    p = g.position()
+    peel = g.noise(p, 250.0, 2.0, 0.5)
+    brush = g.noise(g.scale(p, (1.0, 1.0, 12.0)), 30.0, 2.0, 0.5)
+    _principled(g, bsdf, color=color, rough=g.map(brush, 0.3, 0.7, rough * 0.85, rough * 1.2),
+                normal=g.bump(g.math("ADD", peel, g.math("MULTIPLY", brush, 0.5)), 0.04, 0.001))
+    return mat
+
+
+def glass(name="glass"):
+    """Thin window glass: transparent (so the sun and portals pass straight through)
+    with Fresnel reflections, slightly green at grazing angles."""
+    mat, g, bsdf = _new(name, (0.7, 0.8, 0.9))
+    nt = g.nt
     out = nt.nodes["Material Output"]
-    transparent = nt.nodes.new("ShaderNodeBsdfTransparent")
-    glossy = nt.nodes.new("ShaderNodeBsdfGlossy")
-    glossy.inputs["Roughness"].default_value = 0.02
-    mix = nt.nodes.new("ShaderNodeMixShader")
-    mix.inputs["Fac"].default_value = 0.08
+    nt.nodes.remove(bsdf)
+    transparent = g.node("ShaderNodeBsdfTransparent")
+    g.set(transparent.inputs["Color"], (0.97, 0.985, 0.98))
+    glossy = g.node("ShaderNodeBsdfGlossy")
+    g.set(glossy.inputs["Roughness"], 0.0)
+    lw = g.node("ShaderNodeLayerWeight")
+    g.set(lw.inputs["Blend"], 0.08)
+    mix = g.node("ShaderNodeMixShader")
+    g.set(mix.inputs["Fac"], lw.outputs["Fresnel"])
     nt.links.new(transparent.outputs[0], mix.inputs[1])
     nt.links.new(glossy.outputs[0], mix.inputs[2])
     nt.links.new(mix.outputs[0], out.inputs["Surface"])
-    nt.nodes.remove(bsdf)
     mat.diffuse_color = (0.7, 0.8, 0.9, 0.3)
     return mat
 
 
+def aluminium(name="aluminium"):
+    """Brushed/bead-blasted aluminium: streaks along each part's long axis."""
+    mat, g, bsdf = _new(name, (0.8, 0.8, 0.82))
+    gv, _ = g.attr("grain")
+    gx, gy, gz = g.sep(gv)
+    streak = g.noise(g.vec(g.math("MULTIPLY", gx, 4.0), g.math("MULTIPLY", gy, 900.0), g.math("MULTIPLY", gz, 900.0)),
+                     1.0, 3.0, 0.6)
+    blotch = g.noise(g.position(), 6.0, 3.0, 0.5)
+    col = g.mix(g.map(streak, 0.3, 0.7), (0.80, 0.81, 0.83), (0.90, 0.905, 0.91))
+    _principled(g, bsdf, color=col, metal=1.0,
+                rough=g.math("ADD", g.map(streak, 0.2, 0.8, 0.3, 0.42), g.map(blotch, 0.4, 0.7, 0.0, 0.08)),
+                normal=g.bump(streak, 0.04, 0.0005))
+    return mat
+
+
+def screen(name="screen"):
+    mat, g, bsdf = _new(name, (0.01, 0.01, 0.012))
+    _principled(g, bsdf, color=(0.004, 0.005, 0.007), rough=0.06, coat=0.6, coat_rough=0.03)
+    return mat
+
+
+def paper(name="paper"):
+    mat, g, bsdf = _new(name, (0.85, 0.84, 0.80))
+    _, rnd = g.attr("island_rand")
+    p = g.obj_coords()
+    fib = g.noise(p, 300.0, 3.0, 0.6)
+    col = g.mix(g.map(rnd, 0.0, 1.0), (0.86, 0.86, 0.84), (0.82, 0.79, 0.70))
+    col = g.mix(g.map(g.math("FRACT", g.math("MULTIPLY", rnd, 7.3)), 0.85, 1.0, 0.0, 0.8), col, (0.80, 0.82, 0.86))
+    col = g.mix(g.map(fib, 0.4, 0.7, 0.0, 0.08), col, (0.6, 0.58, 0.55))
+    _principled(g, bsdf, color=col, rough=0.72, sheen=0.25, sss=0.05, sss_radius=(0.02, 0.02, 0.02),
+                normal=g.bump(fib, 0.05, 0.0005))
+    return mat
+
+
+def cardboard(name="cardboard"):
+    mat, g, bsdf = _new(name, (0.43, 0.27, 0.13))
+    _, rnd = g.attr("island_rand")
+    gv, _ = g.attr("grain")
+    gx, gy, gz = g.sep(gv)
+    p = g.obj_coords()
+    fib = g.noise(p, 120.0, 4.0, 0.65)
+    blot = g.noise(p, 5.0, 3.0, 0.6)
+    # corrugation ripples running across the long axis, faint through the liner
+    ripple = g.math("SINE", g.math("MULTIPLY", gx, 800.0))
+    col = g.mix(g.map(rnd, 0.0, 1.0), (0.42, 0.27, 0.13), (0.50, 0.34, 0.18))
+    col = g.mix(g.map(blot, 0.4, 0.7, 0.0, 0.3), col, (0.34, 0.20, 0.09))
+    col = g.mix(g.map(fib, 0.5, 0.7, 0.0, 0.25), col, (0.56, 0.42, 0.26))
+    h = g.math("ADD", g.math("MULTIPLY", ripple, 0.05), g.math("MULTIPLY", fib, 0.3))
+    _principled(g, bsdf, color=col, rough=0.85, sheen=0.2, normal=g.bump(h, 0.1, 0.001))
+    return mat
+
+
+def fabric(name, color, sheen_tint=(0.5, 0.5, 0.5)):
+    mat, g, bsdf = _new(name, color)
+    p = g.obj_coords()
+    w1 = g.math("SINE", g.math("MULTIPLY", g.sep(p)[0], 1400.0))
+    w2 = g.math("SINE", g.math("MULTIPLY", g.sep(p)[2], 1400.0))
+    weave = g.math("MULTIPLY", w1, w2)
+    blot = g.noise(p, 12.0, 3.0, 0.6)
+    col = g.mix(g.map(blot, 0.35, 0.7), color, tuple(min(1.0, c * 1.6 + 0.01) for c in color))
+    _principled(g, bsdf, color=col, rough=0.95, sheen=0.7, sheen_tint=sheen_tint, sheen_rough=0.4,
+                normal=g.bump(weave, 0.12, 0.0005))
+    return mat
+
+
+def lampshade(name="lampshade"):
+    """Linen shade. Lets light through (translucent), and glows warm when
+    finish_scene() switches the lamp on (emission is set there)."""
+    c = (0.84, 0.72, 0.52)
+    mat, g, bsdf = _new(name, c)
+    nt = g.nt
+    out = nt.nodes["Material Output"]
+    p = g.obj_coords()
+    x, y, z = g.sep(p)
+    weave = g.math("MULTIPLY", g.math("SINE", g.math("MULTIPLY", g.math("ADD", x, y), 900.0)),
+                   g.math("SINE", g.math("MULTIPLY", z, 900.0)))
+    slub = g.noise(g.vec(x, y, g.math("MULTIPLY", z, 25.0)), 30.0, 2.0, 0.5)
+    col = g.mix(g.map(slub, 0.5, 0.8, 0.0, 0.5), c, (0.74, 0.62, 0.42))
+    _principled(g, bsdf, color=col, rough=0.9, sheen=0.4, normal=g.bump(weave, 0.06, 0.0005),
+                emit_color=(1.0, 0.62, 0.30), emit=0.0)
+    trans = g.node("ShaderNodeBsdfTranslucent")
+    g.set(trans.inputs["Color"], col)
+    mix = g.node("ShaderNodeMixShader")
+    g.set(mix.inputs["Fac"], 0.3)
+    nt.links.new(bsdf.outputs[0], mix.inputs[1])
+    nt.links.new(trans.outputs[0], mix.inputs[2])
+    nt.links.new(mix.outputs[0], out.inputs["Surface"])
+    return mat
+
+
+def wicker(name="wicker"):
+    c = (0.48, 0.34, 0.18)
+    mat, g, bsdf = _new(name, c)
+    gv, _ = g.attr("grain")
+    gx, gy, gz = g.sep(gv)
+    pitch = 120.0  # strands per metre (ish)
+    a = g.math("SINE", g.math("MULTIPLY", g.math("ADD", gx, g.math("ADD", gy, gz)), pitch * 3.1416))
+    b = g.math("SINE", g.math("MULTIPLY", g.math("SUBTRACT", gx, g.math("ADD", gy, gz)), pitch * 3.1416))
+    weave = g.math("MAXIMUM", g.math("ABSOLUTE", a), g.math("ABSOLUTE", b))
+    gaps = g.map(weave, 0.0, 0.35, 1.0, 0.0)
+    tone = g.noise(g.vec(gx, gy, gz), 20.0, 3.0, 0.6)
+    col = g.mix(g.map(tone, 0.35, 0.65), (0.40, 0.27, 0.13), (0.58, 0.43, 0.24))
+    col = g.mix(gaps, col, (0.08, 0.05, 0.02))
+    _principled(g, bsdf, color=col, rough=0.75, normal=g.bump(weave, 0.6, 0.004))
+    return mat
+
+
+def art_print(name="art_dark"):
+    """Black-and-white landscape print: rows of dark trees under a pale sky."""
+    mat, g, bsdf = _new(name, (0.06, 0.07, 0.06))
+    p = g.obj_coords()
+    x, y, z = g.sep(p)  # print faces -Y: x across, z up
+    land = g.noise(g.vec(g.math("MULTIPLY", x, 1.0), 0.0, g.math("MULTIPLY", z, 0.3)), 6.0, 6.0, 0.6)
+    trees = g.noise(g.vec(g.math("MULTIPLY", x, 3.0), 0.0, g.math("MULTIPLY", z, 1.2)), 18.0, 8.0, 0.65)
+    horizon = g.map(z, 0.04, 0.12, 0.0, 1.0, "SMOOTHSTEP")
+    v = g.map(g.math("ADD", trees, g.math("MULTIPLY", land, 0.4)), 0.4, 0.9, 0.012, 0.22)
+    v = g.mixf(horizon, v, g.map(z, 0.1, 0.25, 0.25, 0.45))
+    col = g.mix(1.0, (0.0, 0.0, 0.0), g.vec(v, v, v), "ADD")
+    _principled(g, bsdf, color=col, rough=0.6)
+    return mat
+
+
+def book(name, color):
+    """Cloth/paper book covers: each book a slightly different shade, gloss and wear."""
+    mat = bpy.data.materials.get(name)
+    if mat:
+        return mat
+    mat, g, bsdf = _new(name, color)
+    _, rnd = g.attr("island_rand")
+    r2 = g.math("FRACT", g.math("MULTIPLY", rnd, 7.31))
+    r3 = g.math("FRACT", g.math("MULTIPLY", rnd, 13.7))
+    col = g.hsv(color, g.map(rnd, 0.0, 1.0, 0.47, 0.53), g.map(r2, 0.0, 1.0, 0.75, 1.15), g.map(r3, 0.0, 1.0, 0.7, 1.2))
+    p = g.obj_coords()
+    cloth = g.noise(p, 500.0, 2.0, 0.5)
+    edge = g.noise(p, 30.0, 3.0, 0.6)
+    col = g.mix(g.map(edge, 0.6, 0.8, 0.0, 0.25), col, (0.5, 0.48, 0.45))
+    _principled(g, bsdf, color=col, rough=g.map(r2, 0.0, 1.0, 0.3, 0.85), sheen=0.15,
+                normal=g.bump(cloth, 0.05, 0.0005))
+    return mat
+
+
+# --- outdoors -------------------------------------------------------------------
+
+
+def grass(name="garden"):
+    mat, g, bsdf = _new(name, (0.10, 0.20, 0.05))
+    p = g.position()
+    big = g.noise(p, 0.12, 3.0, 0.5)
+    mid = g.noise(p, 0.8, 4.0, 0.6)
+    fine = g.noise(p, 40.0, 3.0, 0.7)
+    col = g.mix(g.map(big, 0.35, 0.65), (0.05, 0.11, 0.02), (0.11, 0.19, 0.035))
+    col = g.mix(g.map(mid, 0.55, 0.75, 0.0, 0.5), col, (0.17, 0.20, 0.06))
+    col = g.mix(g.map(fine, 0.3, 0.7), g.mix(0.5, col, (0.0, 0.0, 0.0)), col)
+    _principled(g, bsdf, color=col, rough=0.95, spec=0.2, normal=g.bump(fine, 0.5, 0.02))
+    return mat
+
+
+def foliage(name="foliage", light=(0.10, 0.20, 0.035), dark=(0.025, 0.06, 0.012)):
+    """Leaf clumps: Voronoi cells for clusters of leaves, each a slightly different green."""
+    mat = bpy.data.materials.get(name)
+    if mat:
+        return mat
+    mat, g, bsdf = _new(name, light)
+    p = g.position()
+    vor = g.node("ShaderNodeTexVoronoi", feature="F1")
+    g.set(vor.inputs["Vector"], p)
+    g.set(vor.inputs["Scale"], 14.0)
+    g.set(vor.inputs["Randomness"], 1.0)
+    cell_r, cell_g, _ = g.sep(vor.outputs["Color"])
+    dist = vor.outputs["Distance"]
+    leaf = g.noise(p, 35.0, 3.0, 0.6)
+    _, rnd = g.attr("island_rand")
+    col = g.mix(cell_r, dark, light)
+    col = g.mix(g.math("MULTIPLY", cell_g, 0.25), col, (0.13, 0.17, 0.04))  # yellow-green flecks
+    col = g.mix(g.math("MULTIPLY", rnd, 0.6), col, g.hsv(col, 0.53, 1.0, 1.0))  # per-tree hue
+    col = g.mix(g.map(dist, 0.2, 0.6, 0.0, 0.5), col, (0.01, 0.02, 0.005))  # depth between clumps
+    h = g.math("SUBTRACT", g.math("MULTIPLY", leaf, 0.5), dist)
+    nt = g.nt
+    out = nt.nodes["Material Output"]
+    _principled(g, bsdf, color=col, rough=0.8, spec=0.25, normal=g.bump(h, 0.45, 0.04))
+    trans = g.node("ShaderNodeBsdfTranslucent")
+    g.set(trans.inputs["Color"], g.mix(0.5, col, (0.35, 0.5, 0.05), "SCREEN"))
+    mix = g.node("ShaderNodeMixShader")
+    g.set(mix.inputs["Fac"], 0.2)
+    nt.links.new(bsdf.outputs[0], mix.inputs[1])
+    nt.links.new(trans.outputs[0], mix.inputs[2])
+    nt.links.new(mix.outputs[0], out.inputs["Surface"])
+    return mat
+
+
+def bark(name="bark"):
+    mat, g, bsdf = _new(name, (0.12, 0.10, 0.08))
+    p = g.position()
+    x, y, z = g.sep(p)
+    ridges = g.noise(g.vec(g.math("MULTIPLY", x, 8.0), g.math("MULTIPLY", y, 8.0), g.math("MULTIPLY", z, 1.0)),
+                     3.0, 4.0, 0.6)
+    col = g.mix(g.map(ridges, 0.3, 0.7), (0.05, 0.045, 0.04), (0.20, 0.18, 0.15))
+    _principled(g, bsdf, color=col, rough=0.9, normal=g.bump(ridges, 0.8, 0.02))
+    return mat
+
+
+def render_wall(name, color):
+    """Distant house walls: painted render or brick, weathered."""
+    mat = bpy.data.materials.get(name)
+    if mat:
+        return mat
+    mat, g, bsdf = _new(name, color)
+    p = g.position()
+    n = g.noise(p, 1.5, 4.0, 0.6)
+    col = g.mix(g.map(n, 0.3, 0.7, 0.0, 0.4), color, g.mix(0.5, color, (0.3, 0.3, 0.3), "MULTIPLY"))
+    _principled(g, bsdf, color=col, rough=0.9)
+    return mat
+
+
+def roof(name="roof_slate"):
+    mat, g, bsdf = _new(name, (0.05, 0.05, 0.06))
+    p = g.position()
+    x, y, z = g.sep(p)
+    courses = g.math("FRACT", g.math("MULTIPLY", z, 9.0))
+    col = g.mix(g.map(g.noise(p, 3.0, 3.0, 0.5), 0.3, 0.7), (0.035, 0.035, 0.045), (0.09, 0.085, 0.09))
+    _principled(g, bsdf, color=col, rough=0.6, normal=g.bump(courses, 0.3, 0.01))
+    return mat
+
+
+# ----------------------------------------------------------------------------
+# Library
+# ----------------------------------------------------------------------------
+
+
+def floor_material():
+    return _cached("floorboards", floorboards)
+
+
 def library():
-    """Named materials every room can draw from."""
+    """Named materials every room can draw from. Names are stable; add, don't rename."""
     return {
-        "plaster": solid("plaster", (0.82, 0.81, 0.78), 0.9),
+        "plaster": _cached("plaster", plaster),
         "brick_x": painted_brick("X"),
         "brick_y": painted_brick("Y"),
-        "floor": floorboards(),
-        "ceiling_wood": solid("ceiling_wood", (0.42, 0.26, 0.13), 0.7),
-        "beam_wood": solid("beam_wood", (0.48, 0.30, 0.15), 0.75),
-        "oak": solid("oak", (0.45, 0.25, 0.10), 0.5),
-        "pine": solid("pine", (0.55, 0.33, 0.14), 0.55),
-        "lino_green": solid("lino_green", (0.07, 0.12, 0.09), 0.45),
-        "steel_black": solid("steel_black", (0.02, 0.02, 0.02), 0.4, 0.6),
-        "sash_white": solid("sash_white", (0.85, 0.85, 0.83), 0.4),
-        "glass": glass(),
-        "aluminium": solid("aluminium", (0.75, 0.76, 0.78), 0.25, 1.0),
-        "plastic_black": solid("plastic_black", (0.02, 0.02, 0.02), 0.35),
-        "plastic_white": solid("plastic_white", (0.85, 0.85, 0.84), 0.3),
-        "screen": solid("screen", (0.01, 0.01, 0.012), 0.08),
-        "paper": solid("paper", (0.85, 0.84, 0.80), 0.8),
-        "cardboard": solid("cardboard", (0.45, 0.32, 0.18), 0.85),
-        "fabric_black": solid("fabric_black", (0.03, 0.03, 0.03), 0.9),
-        "wicker": solid("wicker", (0.50, 0.38, 0.22), 0.9),
-        "lampshade": solid("lampshade", (0.85, 0.72, 0.52), 0.8),
-        "art_dark": solid("art_dark", (0.06, 0.07, 0.06), 0.7),
-        "garden": solid("garden", (0.12, 0.22, 0.07), 0.9),
-        "foliage": solid("foliage", (0.08, 0.18, 0.05), 0.9),
+        "floor": floor_material(),
+        "ceiling_wood": wood("ceiling_wood", (0.34, 0.20, 0.10), (0.16, 0.08, 0.035), 0.7, 60.0, planks=0.14, age=0.5),
+        "beam_wood": wood("beam_wood", (0.40, 0.25, 0.12), (0.17, 0.09, 0.04), 0.65, 45.0, age=1.0),
+        "oak": wood("oak", (0.30, 0.15, 0.055), (0.13, 0.055, 0.018), 0.38, 110.0, coat=0.3),
+        "pine": wood("pine", (0.58, 0.36, 0.15), (0.36, 0.17, 0.05), 0.5, 55.0, coat=0.15),
+        "lino_green": _cached("lino_green", lino),
+        "steel_black": _cached("steel_black", steel_black),
+        "sash_white": _cached("sash_white", lambda n: satin_paint(n, (0.82, 0.82, 0.80))),
+        "glass": _cached("glass", glass),
+        "aluminium": _cached("aluminium", aluminium),
+        "plastic_black": _cached("plastic_black", lambda n: _plastic(n, (0.022, 0.022, 0.024), 0.5)),
+        "plastic_black_satin": _cached("plastic_black_satin", lambda n: _plastic(n, (0.018, 0.018, 0.02), 0.22)),
+        "plastic_white": _cached("plastic_white", lambda n: _plastic(n, (0.82, 0.82, 0.80), 0.28)),
+        "screen": _cached("screen", screen),
+        "paper": _cached("paper", paper),
+        "cardboard": _cached("cardboard", cardboard),
+        "fabric_black": _cached("fabric_black", lambda n: fabric(n, (0.025, 0.025, 0.028))),
+        "wicker": _cached("wicker", wicker),
+        "lampshade": _cached("lampshade", lampshade),
+        "art_dark": _cached("art_dark", art_print),
+        "garden": _cached("garden", grass),
+        "foliage": foliage("foliage"),
+        "foliage_dark": foliage("foliage_dark", (0.06, 0.14, 0.03), (0.015, 0.04, 0.01)),
+        "foliage_light": foliage("foliage_light", (0.16, 0.26, 0.05), (0.04, 0.09, 0.015)),
+        "bark": _cached("bark", bark),
+        "house_render": render_wall("house_render", (0.62, 0.58, 0.50)),
+        "house_brick": render_wall("house_brick", (0.30, 0.12, 0.07)),
+        "roof_slate": _cached("roof_slate", roof),
     }
 
 
@@ -138,4 +727,134 @@ BOOK_COLOURS = [
 
 
 def book_materials():
-    return [solid(f"book_{i:02d}", c, 0.6) for i, c in enumerate(BOOK_COLOURS)]
+    return [book(f"book_{i:02d}", c) for i, c in enumerate(BOOK_COLOURS)]
+
+
+# ----------------------------------------------------------------------------
+# Scene finishing pass (runs once, after the room is built)
+# ----------------------------------------------------------------------------
+
+BEVEL_COLLECTIONS = ("Furniture", "Props", "Ceiling", "Architecture")
+BEVEL_SKIP_PREFIXES = ("wall_", "floor", "ceiling", "ground")
+
+
+def _islands(mesh):
+    """Vertex island index per vertex (union-find over edges)."""
+    n = len(mesh.vertices)
+    parent = np.arange(n)
+    edges = np.empty(len(mesh.edges) * 2, dtype=np.int64)
+    mesh.edges.foreach_get("vertices", edges)
+    edges = edges.reshape(-1, 2)
+
+    def find(a):
+        root = a
+        while parent[root] != root:
+            root = parent[root]
+        while parent[a] != root:
+            parent[a], a = root, parent[a]
+        return root
+
+    for a, b in edges:
+        ra, rb = find(a), find(b)
+        if ra != rb:
+            parent[max(ra, rb)] = min(ra, rb)
+    return np.array([find(i) for i in range(n)])
+
+
+def _write_grain(obj, rng):
+    """'grain' (vector, local frame per island: X along the longest axis) and
+    'island_rand' (0..1 per island) point attributes."""
+    mesh = obj.data
+    if "grain" in mesh.attributes or len(mesh.vertices) == 0:
+        return np.zeros(0)
+    co = np.empty(len(mesh.vertices) * 3)
+    mesh.vertices.foreach_get("co", co)
+    co = co.reshape(-1, 3)
+    isl = _islands(mesh)
+    grain = np.zeros_like(co)
+    rand = np.zeros(len(co))
+    sizes = []
+    for root in np.unique(isl):
+        idx = np.nonzero(isl == root)[0]
+        sizes.append(len(idx))
+        pts = co[idx]
+        c = pts.mean(axis=0)
+        d = pts - c
+        if len(idx) >= 3:
+            _, vecs = np.linalg.eigh(d.T @ d)
+            axes = vecs[:, ::-1]  # longest first
+        else:
+            axes = np.eye(3)
+        local = d @ axes
+        off = np.array([rng.uniform(0, 50), rng.choice((-1, 1)) * rng.uniform(0.05, 0.35),
+                        rng.choice((-1, 1)) * rng.uniform(0.05, 0.35)])
+        grain[idx] = local + off
+        rand[idx] = rng.random()
+    a = mesh.attributes.new("grain", "FLOAT_VECTOR", "POINT")
+    a.data.foreach_set("vector", grain.ravel())
+    r = mesh.attributes.new("island_rand", "FLOAT", "POINT")
+    r.data.foreach_set("value", rand)
+    return np.array(sizes)
+
+
+def _bevel(obj, width):
+    mod = obj.modifiers.new("bevel", "BEVEL")
+    mod.width = width
+    mod.segments = 2
+    mod.limit_method = "ANGLE"
+    mod.angle_limit = math.radians(35)
+    mod.use_clamp_overlap = True
+    mod.harden_normals = False
+
+
+def _lamp_glow(scene, strength):
+    shade = bpy.data.materials.get("lampshade")
+    if shade:
+        bsdf = next(n for n in shade.node_tree.nodes if n.bl_idname == "ShaderNodeBsdfPrincipled")
+        bsdf.inputs["Emission Strength"].default_value = 0.04 * strength
+    col = bpy.data.collections.get("Lighting") or scene.collection
+    for obj in [o for o in scene.objects if o.type == "MESH" and o.name.startswith("floor_lamp")]:
+        top = max((obj.matrix_world @ v.co).z for v in obj.data.vertices)
+        x, y = obj.matrix_world.translation.xy
+        # one bulb inside the shade; no shadows from the shade itself, so it
+        # behaves like an open-topped, open-bottomed drum
+        light = bpy.data.lights.new(f"{obj.name}_bulb", "POINT")
+        light.energy = 4.0 * strength
+        light.shadow_soft_size = 0.05
+        light.color = (1.0, 0.72, 0.45)
+        try:
+            light.cycles.cast_shadow = False
+        except AttributeError:
+            light.use_shadow = False
+        lo = bpy.data.objects.new(f"{obj.name}_bulb", light)
+        lo.location = (x, y, top - 0.16)
+        col.objects.link(lo)
+
+
+def finish_scene(scene):
+    """Look pass over the built scene. Idempotent (guarded by a scene flag)."""
+    if scene.get("look_finished"):
+        return
+    rng = random.Random(1234)
+    for obj in scene.objects:
+        if obj.type != "MESH":
+            continue
+        sizes = _write_grain(obj, rng)
+        cols = {c.name for c in obj.users_collection}
+        small_parts = len(sizes) and sizes.max() <= 66  # Builder boxes/cylinders only
+        if (small_parts and cols & set(BEVEL_COLLECTIONS) and not obj.modifiers
+                and not obj.name.startswith(BEVEL_SKIP_PREFIXES) and not obj.get("no_bevel")):
+            heavy = obj.name.startswith(("joists",))
+            fine = obj.name.endswith("_books") or obj.name.startswith(("papers", "window_", "door_"))
+            _bevel(obj, 0.012 if heavy else 0.0015 if fine else 0.003)
+        if small_parts:
+            # smooth cylinders, crisp boxes (normals only; geometry untouched)
+            try:
+                obj.data.shade_smooth()
+                obj.data.set_sharp_from_angle(angle=math.radians(30))
+            except (AttributeError, TypeError):
+                pass
+    glow = scene.get("lamp_glow", 0.0)
+    if glow:
+        _lamp_glow(scene, glow)
+    scene["look_finished"] = True

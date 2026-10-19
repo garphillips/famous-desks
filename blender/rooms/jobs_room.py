@@ -83,9 +83,11 @@ def build():
     books = materials.book_materials()
     architecture.Room(SPEC, m).build()
     architecture.build_outdoors(m)
-    architecture.build_world(strength=2.5)
-    architecture.build_sun(azimuth_deg=200, elevation_deg=35, strength=5.0)
-    bpy.context.scene.view_settings.exposure = 1.6
+    sky = 0.1  # physical sky strength; sun lamp and exposure follow it
+    architecture.build_world(strength=sky, sun_azimuth=200, sun_elevation=35)
+    architecture.build_sun(azimuth_deg=200, elevation_deg=35, strength=architecture.SKY_SUN_RATIO * sky)
+    bpy.context.scene.view_settings.exposure = 3.4
+    bpy.context.scene["lamp_glow"] = 1.0  # warm floor-lamp glow (materials.finish_scene)
 
     furn = collection("Furniture")
     props = collection("Props")
