@@ -65,8 +65,7 @@ def arch_materials():
         "arch_putty": _arch_mat("arch_putty", (0.025, 0.025, 0.024), 0.6),  # painted over, like the frames
         "arch_void": _arch_mat("arch_void", (0.02, 0.012, 0.008), 0.9),  # behind board gaps
         # ceiling boards: the ceiling wood without its painted-on plank joints (boards are real here)
-        "arch_ceiling_boards": materials.wood("arch_ceiling_boards", (0.34, 0.20, 0.10), (0.16, 0.08, 0.035),
-                                              0.7, 60.0, age=0.5),
+        "arch_ceiling_boards": materials.ceiling_boards(),
     }
 
 

@@ -4,17 +4,20 @@ cache is missing: run python3 -I blender/assets/fetch.py).
 
 Scanned textures (blender/assets/manifest/textures.json) are colour, roughness
 and displacement maps; displacement only drives a Bump node. Builder meshes have
-no UVs, so textures are box-projected in world space (walls, floor), object space
-(props), or along each part's grain frame (wood, brushed metal), at real-world
-scale, with a random offset per part. A grime layer (dust and smudges, also
+no UVs, so textures are projected triplanar in world space (walls), per floorboard
+(floor), in object space (props), or along each part's grain frame (wood, brushed
+metal), at real-world scale, with a random offset per part. A grime layer (dust and smudges, also
 scanned) breaks up roughness and colour.
 
 Patterns come from:
-- world position, for things that must line up across objects (brick, floorboards);
+- world position, for things that must line up across objects (brick, floor wear);
+- the floorboard attributes board_id / board_rand (see lib.architecture), so each
+  real board piece gets its own tone and patch of the scan;
 - the "grain" point attribute that finish_scene() writes on every mesh: per
   island (each Builder box/cylinder), a local frame whose X runs along the
   island's longest axis, plus a random offset, so wood grain follows each board
-  and every piece is cut from a different part of the "log";
+  and every piece is cut from a different part of the "log" (with a face-domain
+  "grain_normal" saying which cross-grain axis runs across each face);
 - the "island_rand" point attribute (0..1 per island), for per-object colour
   variation (books, paper, cardboard).
 
@@ -277,6 +280,51 @@ def _world_vec(g, size, offset=(0.0, 0.0, 0.0)):
     return g.vmath("ADD", g.scale(g.position(), (1 / size,) * 3), offset)
 
 
+def _tri_weights(g, sharp=6.0):
+    """Triplanar blend weights (wx, wy, wz) from the world normal: |n|^sharp, normalised,
+    so flat faces take one projection and only rounded arrises blend."""
+    nx, ny, nz = g.sep(g.normal())
+    w = [g.math("POWER", g.math("ABSOLUTE", n), sharp) for n in (nx, ny, nz)]
+    total = g.math("MAXIMUM", g.math("ADD", g.math("ADD", w[0], w[1]), w[2]), 1e-4)
+    return [g.math("DIVIDE", wi, total) for wi in w]
+
+
+def _tri_planes(g, size):
+    """World-space planar coordinates per axis at real scale, each with its own offset:
+    X faces (y, z), Y faces (x, z), Z faces (x, y). Vertical faces keep z as V, so
+    brick courses stay level and line up from wall faces into reveals."""
+    x, y, z = g.sep(g.position())
+    k = 1.0 / size
+    return [g.vec(g.math("MULTIPLY", a, k), g.math("MULTIPLY", b, k), 0.0)
+            for a, b in ((g.math("ADD", y, 0.37), z), (x, z), (g.math("ADD", x, 0.21), g.math("ADD", y, 0.53)))]
+
+
+def _tri_blend(g, weights, values, color=True):
+    """Weighted sum of three per-axis samples (colours or scalars)."""
+    if color:
+        terms = [g.vmath("MULTIPLY", v, g.gray(w)) for v, w in zip(values, weights)]
+        return g.vmath("ADD", g.vmath("ADD", terms[0], terms[1]), terms[2])
+    terms = [g.math("MULTIPLY", v, w) for v, w in zip(values, weights)]
+    return g.math("ADD", g.math("ADD", terms[0], terms[1]), terms[2])
+
+
+def _tri_scan(g, asset_id, size, roles=("col", "rough", "disp"), sharp=6.0):
+    """Scanned maps projected triplanar in world space (see _tri_planes), blended by
+    the surface normal. Returns one blended output per role (colour for 'col',
+    scalar for the others)."""
+    weights = _tri_weights(g, sharp)
+    planes = _tri_planes(g, size)
+    out = []
+    for role in roles:
+        img = _image(asset_id, role)
+        samples = [g.tex(img, p) for p in planes]
+        if role == "col":
+            out.append(_tri_blend(g, weights, samples))
+        else:
+            out.append(_tri_blend(g, weights, [g.bw(c) for c in samples], color=False))
+    return out
+
+
 def _obj_vec(g, size):
     """Object space, real-world scale, every part from a different patch of the texture."""
     _, rnd = g.attr("island_rand")
@@ -293,11 +341,37 @@ def _grain_vec(g, size, swap=False, along=None, across=None):
     return g.vec(v, u, 0.0) if swap else g.vec(u, v, 0.0)
 
 
+def _grain_across_y(g, sharp=4.0):
+    """0..1 weight for mapping across the grain by gy (1) rather than gz (0): faces
+    whose normal lies along the grain frame's Z run across gy, and the other way
+    round; chamfers blend. Faces without the attribute get 1."""
+    gn, _ = g.attr("grain_normal")
+    _, ny, nz = g.sep(gn)
+    py, pz = g.math("POWER", ny, sharp), g.math("POWER", nz, sharp)
+    total = g.math("ADD", py, pz)
+    w = g.math("DIVIDE", pz, g.math("MAXIMUM", total, 1e-6))
+    return g.mixf(g.math("LESS_THAN", total, 1e-6), w, 1.0)
+
+
 def _grime(g, vec):
     """(dust, smudge) masks, 0..1, from scanned imperfection maps."""
     dust = g.tex(_image(DUST, "mask"), vec, 0.3)
     smudge = g.tex(_image(SMUDGE, "mask"), g.vmath("ADD", g.scale(vec, (0.7, 0.7, 0.7)), (0.37, 0.61, 0.13)), 0.3)
     return g.map(dust, 0.2, 0.55), g.map(smudge, 0.08, 0.35)
+
+
+def _edge_wear(g, radius=0.003, amount=1.0, vec=None):
+    """0..1 mask of worn paint on convex edges: where a Bevel-node normal (rounded over
+    `radius`) leans away from the true normal, broken up by noise so only some
+    stretches of each edge are rubbed through. Bevel costs a few rays per shading
+    point, so keep it to small dark metal parts."""
+    bev = g.node("ShaderNodeBevel", samples=4)
+    g.set(bev.inputs["Radius"], radius)
+    edge = g.math("SUBTRACT", 1.0, g.vmath("DOT_PRODUCT", bev.outputs["Normal"], g.normal()))
+    edge = g.map(edge, 0.01, 0.12)
+    p = vec if vec is not None else g.position()
+    breakup = g.map(g.noise(p, 40.0, 4.0, 0.7, 0.3), 0.45, 0.7)
+    return g.math("MULTIPLY", g.math("MULTIPLY", edge, breakup), amount, clamp=True)
 
 
 def _tone(g, color, tex, median, spread, lo=0.6, hi=1.4):
@@ -352,27 +426,22 @@ def plaster(name="plaster"):
 def painted_brick(axis):
     """Whitewashed brick, projected in world space so courses line up across wall pieces.
 
-    The projection plane follows the surface normal (X-Z on faces looking north/south,
-    Y-Z on faces looking east/west), so reveals and wall ends get bricks too. The
-    axis argument only keeps the historical material names (brick_x / brick_y).
-    """
+    Triplanar: each face takes the projection its normal faces (X faces y-z, Y faces
+    x-z, sills and soffits x-y), blended only across the rounded arrises, so reveals,
+    sills and wall returns get properly scaled bricks too. The axis argument only
+    keeps the historical material names (brick_x / brick_y)."""
     name = f"painted_brick_{axis.lower()}"
     return _pick(name, brick_scan, _brick_procedural, BRICK)
 
 
-def _brick_procedural(name):
-    paint = (0.80, 0.79, 0.76)
-    mat, g, bsdf = _new(name, paint)
-    pos = g.position()
-    px, py, pz = g.sep(pos)
-    nx, ny, nz = g.sep(g.normal())
-    use_y = g.math("GREATER_THAN", g.math("ABSOLUTE", nx), g.math("ABSOLUTE", ny))
-    horiz = g.mixf(use_y, px, py)
+def _brick_pattern(g, uv, pos):
+    """(per-brick random 0..1, mortar 0..1) for one projection plane (uv in metres)."""
+    u, v, _ = g.sep(uv)
     # mortar lines wobble a few mm, like hand-laid courses under thick paint
     wob = g.noise(pos, 4.0, 2.0, 0.5)
     wob2 = g.noise(g.vmath("ADD", pos, (5.3, 1.1, 7.7)), 4.0, 2.0, 0.5)
-    u = g.math("ADD", horiz, g.math("MULTIPLY", g.math("SUBTRACT", wob, 0.5), 0.02))
-    v = g.math("ADD", pz, g.math("MULTIPLY", g.math("SUBTRACT", wob2, 0.5), 0.012))
+    u = g.math("ADD", u, g.math("MULTIPLY", g.math("SUBTRACT", wob, 0.5), 0.02))
+    v = g.math("ADD", v, g.math("MULTIPLY", g.math("SUBTRACT", wob2, 0.5), 0.012))
     brick = g.node("ShaderNodeTexBrick", offset=0.5, offset_frequency=2, squash=1.0, squash_frequency=2)
     g.set(brick.inputs["Vector"], g.vec(u, v, 0.0))
     g.set(brick.inputs["Scale"], 1.0)
@@ -385,7 +454,17 @@ def _brick_procedural(name):
     g.set(brick.inputs["Color2"], (0.0, 0.0, 0.0))
     g.set(brick.inputs["Mortar"], (0.5, 0.5, 0.5))
     per_brick, _, _ = g.sep(brick.outputs["Color"])  # random 0..1 per brick (0.5 in mortar)
-    mortar = brick.outputs["Factor"]
+    return per_brick, brick.outputs["Factor"]
+
+
+def _brick_procedural(name):
+    paint = (0.80, 0.79, 0.76)
+    mat, g, bsdf = _new(name, paint)
+    pos = g.position()
+    weights = _tri_weights(g)
+    pats = [_brick_pattern(g, uv, pos) for uv in _tri_planes(g, 1.0)]
+    per_brick = _tri_blend(g, weights, [p[0] for p in pats], color=False)
+    mortar = _tri_blend(g, weights, [p[1] for p in pats], color=False)
 
     # paint colour: per-brick tint, broad blotches where the wash is thinner, fine mottling
     col = g.mix(per_brick, (0.80, 0.79, 0.76), (0.86, 0.855, 0.83))
@@ -408,17 +487,18 @@ def _brick_procedural(name):
 
 
 def floorboards(name="floorboards"):
-    """Wide oak boards running north-south, uneven widths, staggered end joints,
-    every plank its own tone. World-projected (X across boards, Y along)."""
+    """Wide oak boards (procedural fallback). The boards themselves are real geometry
+    (architecture.build_floor), so this only shades them: every board piece its own
+    tone and figure from its board_rand / board_id attributes."""
     mat, g, bsdf = _new(name, (0.36, 0.17, 0.06))
-    b = _boards(g)
-    x, y, across, seam, r_piece = b["x"], b["y"], b["across"], b["seam"], b["r_piece"]
+    b = _board_attrs(g)
+    x, y, r_piece = b["x"], b["y"], b["rand"]
     r1, r2, r3 = b["r"]
 
     # plain-sawn grain: rings around a log axis set back from the board face
-    gy = g.math("ADD", g.math("MULTIPLY", across, 0.19), g.math("MULTIPLY", r1, 0.5))
+    gy = g.math("ADD", x, g.math("MULTIPLY", r1, 0.5))
     gz = g.math("ADD", 0.06, g.math("MULTIPLY", r2, 0.25))
-    gx = g.math("ADD", y, g.math("MULTIPLY", r3, 40.0))
+    gx = g.math("ADD", g.math("MULTIPLY", y, b["flip"]), g.math("MULTIPLY", r3, 40.0))
     band, pores = _grain(g, gx, gy, gz, rings_per_m=110.0, pore_scale=1.0)
 
     tone = g.mix(r_piece, (0.30, 0.135, 0.045), (0.46, 0.235, 0.09))
@@ -426,39 +506,32 @@ def floorboards(name="floorboards"):
     tone = g.mix(g.map(r1, 0.0, 0.18, 0.5, 0.0), tone, (0.20, 0.085, 0.03))  # a few dark ones
     wood = g.mix(g.math("MULTIPLY", band, 0.45), tone, g.mix(0.5, tone, (0.12, 0.05, 0.015), "MULTIPLY"))
     wood = g.mix(g.math("MULTIPLY", pores, 0.25), wood, (0.14, 0.06, 0.02))
-    # wear: lighter, duller patches in traffic areas; dust in the seams
+    # wear: lighter, duller patches in traffic areas
     wear = g.map(g.noise(g.vec(x, y, 0.0), 0.7, 3.0, 0.5), 0.45, 0.7, 0.0, 1.0)
     wood = g.mix(g.math("MULTIPLY", wear, 0.25), wood, (0.55, 0.33, 0.16))
-    col = g.mix(seam, wood, (0.05, 0.025, 0.01))
+    col = g.mix(b["side"], wood, (0.05, 0.025, 0.01))
     scuff = g.noise(g.vec(g.math("MULTIPLY", x, 3.0), y, 0.0), 12.0, 4.0, 0.6)
     rough = g.math("ADD", g.map(r_piece, 0.0, 1.0, 0.24, 0.36), g.math("MULTIPLY", wear, 0.12))
     rough = g.math("ADD", rough, g.map(scuff, 0.4, 0.7, 0.0, 0.12))
-    h = g.math("SUBTRACT", g.math("MULTIPLY", band, 0.08), g.math("MULTIPLY", seam, 1.0))
-    h = g.math("SUBTRACT", h, g.math("MULTIPLY", pores, 0.12))
+    h = g.math("SUBTRACT", g.math("MULTIPLY", band, 0.08), g.math("MULTIPLY", pores, 0.12))
     _principled(g, bsdf, color=col, rough=rough, spec=0.5, normal=g.bump(h, 0.35, 0.003))
     return mat
 
 
-def _boards(g):
-    """Floorboard layout in world space: ~19 cm boards (widths wander +-20%) running
-    north-south, staggered end joints. Returns coordinates, per-piece randoms and
-    the seam mask (1 in the gaps)."""
+def _board_attrs(g):
+    """Per-board values from the floorboard geometry (see lib.architecture): world x/y,
+    board_rand, three more randoms hashed from board_id, a +-1 flip (each board's
+    figure runs one way or the other, i.e. turned 180 degrees) and 'side', 1 on the
+    board sides and ends down in the real gaps (and a little on the chamfers)."""
     x, y, _ = g.sep(g.position())
-    f = g.math("ADD", g.math("DIVIDE", x, 0.19), g.math("MULTIPLY", g.math("SINE", g.math("MULTIPLY", x, 1.9)), 0.22))
-    f = g.math("ADD", f, g.math("MULTIPLY", g.math("SINE", g.math("ADD", g.math("MULTIPLY", x, 4.3), 1.0)), 0.13))
-    board = g.math("FLOOR", f)
-    across = g.math("FRACT", f)
-    r_board, _ = g.white(g.vec(board, 0.0, 0.0))
-    length = g.math("ADD", 1.1, g.math("MULTIPLY", r_board, 1.7))
-    along = g.math("DIVIDE", g.math("ADD", y, g.math("MULTIPLY", r_board, 9.7)), length)
-    piece = g.math("FLOOR", along)
-    along_f = g.math("FRACT", along)
-    r_piece, rc = g.white(g.vec(board, piece, 1.0))
-    # seams (in metres from the edge)
-    d_side = g.math("MULTIPLY", g.math("MINIMUM", across, g.math("SUBTRACT", 1.0, across)), 0.19)
-    d_end = g.math("MULTIPLY", g.math("MINIMUM", along_f, g.math("SUBTRACT", 1.0, along_f)), length)
-    seam = g.math("MAXIMUM", g.map(d_side, 0.0, 0.0025, 1.0, 0.0), g.map(d_end, 0.0, 0.0012, 1.0, 0.0))
-    return {"x": x, "y": y, "across": across, "r_piece": r_piece, "r": g.sep(rc), "seam": seam}
+    _, bid = g.attr("board_id")
+    _, brand = g.attr("board_rand")
+    _, rc = g.white(g.vec(bid, 7.0, 0.0))
+    r1, r2, r3 = g.sep(rc)
+    flip = g.math("SUBTRACT", 1.0, g.math("MULTIPLY", g.math("GREATER_THAN", r3, 0.5), 2.0))
+    _, _, nz = g.sep(g.normal())
+    side = g.map(nz, 0.55, 0.97, 0.85, 0.0)
+    return {"x": x, "y": y, "id": bid, "rand": brand, "r": (r1, r2, r3), "flip": flip, "side": side}
 
 
 def _grain(g, gx, gy, gz, rings_per_m=90.0, pore_scale=1.0):
@@ -539,8 +612,10 @@ def steel_black(name="steel_black"):
     peel = g.noise(p, 300.0, 2.0, 0.5)
     var = g.noise(p, 8.0, 3.0, 0.6)
     col = g.mix(g.map(var, 0.4, 0.7, 0.0, 1.0), (0.012, 0.012, 0.013), (0.03, 0.03, 0.03))
-    _principled(g, bsdf, color=col, metal=0.15, rough=g.map(var, 0.3, 0.7, 0.28, 0.45), coat=0.2,
-                coat_rough=0.3, normal=g.bump(peel, 0.05, 0.001))
+    wear = _edge_wear(g, amount=0.8)
+    col = g.mix(wear, col, (0.16, 0.155, 0.15))
+    _principled(g, bsdf, color=col, metal=g.mixf(wear, 0.15, 0.8), rough=g.map(var, 0.3, 0.7, 0.28, 0.45),
+                coat=g.mixf(wear, 0.2, 0.0), coat_rough=0.3, normal=g.bump(peel, 0.05, 0.001))
     return mat
 
 
@@ -807,12 +882,13 @@ def roof(name="roof_slate"):
 
 def brick_scan(name):
     """Thick white paint over hand-laid brick (scan: 22 courses per 1.69 m tile,
-    so ~7.7 cm courses and ~21 cm bricks). World box projection, so courses run
-    on across wall pieces, reveals and sills."""
-    paint = (0.85, 0.845, 0.83)
+    so ~7.7 cm courses and ~21 cm bricks). World-space triplanar (_tri_scan), so
+    courses run on across wall pieces and reveals, sills and returns get true-scale
+    bricks."""
+    paint = (0.77, 0.79, 0.81)  # a touch cool: the room's bounce light is warm timber
     mat, g, bsdf = _new(name, paint)
     pos = g.position()
-    col_t, r_t, h_t = _scan(g, BRICK, _world_vec(g, 1.69), 0.2)
+    col_t, r_t, h_t = _tri_scan(g, BRICK, 1.69)
     lum = g.bw(col_t)
     # the scan's paint is blue: keep its light and shade, repaint it white
     shade = g.map(lum, 0.03, 0.36, 0.5, 1.04)
@@ -840,43 +916,54 @@ def plaster_scan(name="plaster"):
     return mat
 
 
+# Warm-wood grade: the room's camera white balance (scene["white_balance"], cool to
+# neutralise the bounce off all this timber) greys wood down, so wood scans are
+# pushed back towards the photo's rich orange-brown here (linear RGB gains).
+WOOD_WARMTH = (1.06, 1.0, 0.9)
+
+
 def floor_scan(name="floorboards"):
-    """Wide oak boards (procedural layout, see _boards) cut from a scanned wood: each
-    board piece takes its own strip of the scan, its own tone and wear."""
+    """Oiled oak boards cut from a scanned wood. The boards are real geometry
+    (architecture.build_floor: real gaps, ends and chamfers), so the shading takes
+    each piece's board_rand / board_id: its own strip of the scan, turned either way,
+    its own tone, plus world-space wear and dust that run on across boards."""
     mat, g, bsdf = _new(name, (0.36, 0.17, 0.06))
-    b = _boards(g)
+    b = _board_attrs(g)
     r1, r2, r3 = b["r"]
-    u = g.math("DIVIDE", g.math("ADD", b["y"], g.math("MULTIPLY", r3, 40.0)), 2.0)
-    v = g.math("DIVIDE", g.math("ADD", g.math("MULTIPLY", b["across"], 0.19), g.math("MULTIPLY", r1, 7.3)), 2.0)
+    # u along the board (world y), v across (world x); random strip, either way round
+    u = g.math("DIVIDE", g.math("ADD", g.math("MULTIPLY", b["y"], b["flip"]), g.math("MULTIPLY", r3, 40.0)), 2.0)
+    v = g.math("DIVIDE", g.math("ADD", g.math("MULTIPLY", b["x"], b["flip"]), g.math("MULTIPLY", r1, 7.3)), 2.0)
     col_t, r_t, h_t = _scan(g, FLOOR_WOOD, g.vec(u, v, 0.0))
-    tone = g.map(b["r_piece"], 0.0, 1.0, 0.7, 1.3)
-    tone = g.math("MULTIPLY", tone, g.map(r2, 0.85, 1.0, 1.0, 1.25))  # a few pale boards
-    col = g.hsv(col_t, g.map(r2, 0.0, 1.0, 0.49, 0.51), g.map(r1, 0.0, 1.0, 0.9, 1.15), tone)
+    tone = g.map(b["rand"], 0.0, 1.0, 0.78, 1.22)
+    tone = g.math("MULTIPLY", tone, g.map(r2, 0.85, 1.0, 1.0, 1.2))  # a few pale boards
+    tone = g.math("MULTIPLY", tone, 1.35)
+    col = g.hsv(col_t, g.map(r2, 0.0, 1.0, 0.49, 0.51), g.map(r1, 0.0, 1.0, 0.85, 1.0), tone)
+    col = g.mix(1.0, col, WOOD_WARMTH, "MULTIPLY")
     xy = g.vec(b["x"], b["y"], 0.0)
     wear = g.map(g.noise(xy, 0.7, 3.0, 0.5), 0.45, 0.7, 0.0, 1.0)  # traffic: lighter, duller
-    col = g.mix(g.math("MULTIPLY", wear, 0.22), col, (0.50, 0.30, 0.15))
+    col = g.mix(g.math("MULTIPLY", wear, 0.18), col, (0.58, 0.32, 0.13))
     dust, smudge = _grime(g, g.scale(xy, (0.6, 0.6, 0.6)))
-    col = g.mix(g.math("MULTIPLY", dust, 0.12), col, (0.40, 0.33, 0.26))
-    col = g.mix(b["seam"], col, (0.04, 0.02, 0.008))
+    col = g.mix(g.math("MULTIPLY", dust, 0.1), col, (0.42, 0.32, 0.22))
+    col = g.mix(b["side"], col, (0.04, 0.02, 0.008))  # board sides and ends, down in the gaps
     rough = g.math("ADD", g.map(r_t, 0.42, 0.58, 0.22, 0.34), g.math("MULTIPLY", wear, 0.14))
     rough = g.math("ADD", rough, g.math("MULTIPLY", dust, 0.2))
     coat_rough = g.math("ADD", 0.1, g.math("ADD", g.math("MULTIPLY", smudge, 0.25), g.math("MULTIPLY", wear, 0.2)))
-    h = g.math("SUBTRACT", g.math("MULTIPLY", h_t, 0.4), b["seam"])
     _principled(g, bsdf, color=col, rough=rough, spec=0.5, coat=g.map(wear, 0.0, 1.0, 0.35, 0.1),
-                coat_rough=coat_rough, normal=g.bump(h, 0.35, 0.003))
+                coat_rough=coat_rough, normal=g.bump(h_t, 0.14, 0.003))
     return mat
 
 
 def wood_scan(name, asset, size, swap=False, hsv=(0.5, 1.0, 1.0), rough=(0.4, 0.6), planks=0.0, coat=0.0,
-              age=0.0, rough_map=(0.0, 1.0)):
+              age=0.0, rough_map=(0.0, 1.0), warm=False):
     """Solid wood from a scan, mapped along each part's grain frame ('grain' attribute,
     which already offsets every part to a different patch). swap: the scan's grain runs
-    along the image's V axis. planks: board width (m) across the second grain axis."""
+    along the image's V axis. planks: board width (m) across the second grain axis.
+    warm: apply WOOD_WARMTH (architectural timber under the room's cool white balance)."""
     mat, g, bsdf = _new(name, (0.3, 0.17, 0.07))
     gv, _ = g.attr("grain")
     gx, gy, gz = g.sep(gv)
     _, rnd = g.attr("island_rand")
-    along, across = gx, g.math("ADD", gy, gz)
+    along, off = gx, 0.0
     joint = r_pl = None
     if planks:
         f = g.math("DIVIDE", g.math("ADD", gy, 50.0), planks)
@@ -886,10 +973,20 @@ def wood_scan(name, asset, size, swap=False, hsv=(0.5, 1.0, 1.0), rough=(0.4, 0.
         r_pl, r_plc = g.white(g.vec(g.math("FLOOR", f), 3.0, 0.0))
         p1, p2, _ = g.sep(r_plc)
         along = g.math("ADD", along, g.math("MULTIPLY", p1, 37.0))
-        across = g.math("ADD", across, g.math("MULTIPLY", p2, 5.0))
-    col_t, r_t, h_t = _scan(g, asset, _grain_vec(g, size, swap, along, across))
+        off = g.math("MULTIPLY", p2, 5.0)
+    # Across the grain, a face may run along either of the part's other two axes. Map
+    # each face by the one that actually runs across it (a single gy + gz mix goes
+    # flat on 45-degree chamfers and smears the scan into stripes there): two
+    # samples, blended by the face normal in the grain frame ('grain_normal').
+    wy = _grain_across_y(g)
+    samples = [_scan(g, asset, _grain_vec(g, size, swap, along, g.math("ADD", a, off))) for a in (gy, gz)]
+    col_t = g.mix(wy, samples[1][0], samples[0][0])
+    r_t = g.mixf(wy, g.bw(samples[1][1]), g.bw(samples[0][1]))
+    h_t = g.mixf(wy, g.bw(samples[1][2]), g.bw(samples[0][2]))
     hue, sat, val = hsv
     col = g.hsv(col_t, g.map(rnd, 0.0, 1.0, hue - 0.01, hue + 0.01), sat, g.map(rnd, 0.0, 1.0, val * 0.85, val * 1.12))
+    if warm:
+        col = g.mix(1.0, col, WOOD_WARMTH, "MULTIPLY")
     h = h_t
     if planks:
         col = g.mix(g.math("MULTIPLY", r_pl, 0.35), col, g.mix(0.5, col, (0.0, 0.0, 0.0)))
@@ -988,7 +1085,13 @@ def steel_black_scan(name="steel_black"):
     col = g.mix(g.math("MULTIPLY", dust, 0.15), col, (0.25, 0.24, 0.22))
     r = g.math("ADD", g.map(var, 0.3, 0.7, 0.3, 0.42), g.math("ADD", g.math("MULTIPLY", smudge, 0.2),
                                                               g.math("MULTIPLY", dust, 0.25)))
-    _principled(g, bsdf, color=col, metal=0.15, rough=r, coat=0.2, coat_rough=0.3, normal=g.bump(peel, 0.05, 0.001))
+    # edge wear: paint rubbed thin on arrises (dark grey steel showing through, a
+    # little more metallic and polished by hands), never bright
+    wear = _edge_wear(g, amount=0.8)
+    col = g.mix(wear, col, (0.16, 0.155, 0.15))
+    r = g.mixf(wear, r, 0.3)
+    _principled(g, bsdf, color=col, metal=g.mixf(wear, 0.15, 0.8), rough=r, coat=g.mixf(wear, 0.2, 0.0),
+                coat_rough=0.3, normal=g.bump(peel, 0.05, 0.001))
     return mat
 
 
@@ -1008,6 +1111,22 @@ def floor_material():
     return _pick("floorboards", floor_scan, floorboards, FLOOR_WOOD)
 
 
+# Old ceiling timber (boards, joists, beams): one scan, one grade, so boards and
+# beams read as the same warm wood, beams a touch darker with age.
+TIMBER_HSV = (0.51, 0.75, 2.9)
+BEAM_HSV = (0.51, 0.75, 4.2)  # beams: same wood, lifted (they sit in the ceiling's shade)
+
+
+def ceiling_boards(name="arch_ceiling_boards"):
+    """Ceiling boards (real pieces from architecture.build_ceiling, so no painted
+    joints): the scanned ceiling timber, each board its own patch of the scan."""
+    return _pick(name,
+                 lambda n: wood_scan(n, TIMBER, 1.0, hsv=TIMBER_HSV, rough=(0.6, 0.8), age=0.5,
+                                     rough_map=(0.6, 0.72), warm=True),
+                 lambda n: wood(n, (0.34, 0.20, 0.10), (0.16, 0.08, 0.035), 0.7, 60.0, age=0.5),
+                 TIMBER)
+
+
 def library():
     """Named materials every room can draw from. Names are stable; add, don't rename."""
     return {
@@ -1016,13 +1135,13 @@ def library():
         "brick_y": painted_brick("Y"),
         "floor": floor_material(),
         "ceiling_wood": _pick("ceiling_wood",
-                              lambda n: wood_scan(n, TIMBER, 1.0, hsv=(0.5, 0.85, 1.9), rough=(0.6, 0.8), planks=0.14,
-                                                  age=0.5, rough_map=(0.6, 0.72)),
+                              lambda n: wood_scan(n, TIMBER, 1.0, hsv=TIMBER_HSV, rough=(0.6, 0.8), planks=0.14,
+                                                  age=0.5, rough_map=(0.6, 0.72), warm=True),
                               lambda n: wood(n, (0.34, 0.20, 0.10), (0.16, 0.08, 0.035), 0.7, 60.0, planks=0.14, age=0.5),
                               TIMBER),
         "beam_wood": _pick("beam_wood",
-                           lambda n: wood_scan(n, TIMBER, 1.3, hsv=(0.5, 0.85, 2.0), rough=(0.58, 0.8), age=1.0,
-                                               rough_map=(0.6, 0.72)),
+                           lambda n: wood_scan(n, TIMBER, 1.3, hsv=BEAM_HSV, rough=(0.58, 0.8), age=1.0,
+                                               rough_map=(0.6, 0.72), warm=True),
                            lambda n: wood(n, (0.40, 0.25, 0.12), (0.17, 0.09, 0.04), 0.65, 45.0, age=1.0),
                            TIMBER),
         "oak": _pick("oak",
@@ -1114,7 +1233,9 @@ def _islands(mesh):
 
 def _write_grain(obj, rng):
     """'grain' (vector, local frame per island: X along the longest axis) and
-    'island_rand' (0..1 per island) point attributes."""
+    'island_rand' (0..1 per island) point attributes, plus 'grain_normal' (face
+    domain): |face normal| in that island's frame, so materials know which of the
+    two cross-grain axes runs across each face."""
     mesh = obj.data
     if "grain" in mesh.attributes or len(mesh.vertices) == 0:
         return np.zeros(0)
@@ -1124,6 +1245,7 @@ def _write_grain(obj, rng):
     isl = _islands(mesh)
     grain = np.zeros_like(co)
     rand = np.zeros(len(co))
+    frames = np.zeros((len(co), 3, 3))
     sizes = []
     for root in np.unique(isl):
         idx = np.nonzero(isl == root)[0]
@@ -1137,6 +1259,7 @@ def _write_grain(obj, rng):
         else:
             axes = np.eye(3)
         local = d @ axes
+        frames[idx] = axes
         off = np.array([rng.uniform(0, 50), rng.choice((-1, 1)) * rng.uniform(0.05, 0.35),
                         rng.choice((-1, 1)) * rng.uniform(0.05, 0.35)])
         grain[idx] = local + off
@@ -1145,6 +1268,17 @@ def _write_grain(obj, rng):
     a.data.foreach_set("vector", grain.ravel())
     r = mesh.attributes.new("island_rand", "FLOAT", "POINT")
     r.data.foreach_set("value", rand)
+    if len(mesh.polygons):
+        normals = np.empty(len(mesh.polygons) * 3)
+        mesh.polygons.foreach_get("normal", normals)
+        starts = np.empty(len(mesh.polygons), dtype=np.int64)
+        mesh.polygons.foreach_get("loop_start", starts)
+        corner_verts = np.empty(len(mesh.loops), dtype=np.int64)
+        mesh.loops.foreach_get("vertex_index", corner_verts)
+        first = corner_verts[starts]
+        local_n = np.abs(np.einsum("fi,fij->fj", normals.reshape(-1, 3), frames[first]))
+        gn = mesh.attributes.new("grain_normal", "FLOAT_VECTOR", "FACE")
+        gn.data.foreach_set("vector", local_n.ravel())
     return np.array(sizes)
 
 
