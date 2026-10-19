@@ -21,7 +21,7 @@ import random
 import bpy
 from mathutils import Matrix, Vector
 
-from lib import architecture, clutter, environment, furniture as f, hero, imported, materials, tour
+from lib import architecture, books, clutter, environment, furniture as f, hero, imported, materials, tour
 from lib.geo import collection
 
 W, D = 6.4, 4.3
@@ -125,16 +125,31 @@ def build_lighting(c):
 
 
 def build_bookshelf(c):
-    """West wall bookshelf (front facing east), its books and what sits on top."""
+    """West wall bookshelf (front facing east), its books and what sits on top.
+    Stocked to match the north-facing photo: bays run south to north (left to
+    right in the photo), levels bottom to top."""
     m, furn, props = c.m, c.furn, c.props
     shelf_depth = 0.34
     bays = 3
     bay_w = (BOOKSHELF[1] - 0.025 * (bays + 1)) / bays
-    f.bookshelf(m, furn, c.books, "bookshelf", (-W / 2 + shelf_depth / 2, BOOKSHELF[0], 0),
-                bays=[bay_w] * bays, shelves=[0.08, 0.46, 0.82, 1.16, 1.48, 1.80, 2.12],
-                depth=shelf_depth, rot_z=math.pi / 2, seed=3)
-    f.black_box(m, props, "basket", (-W / 2 + 0.2, 1.4, 2.145), (0.3, 0.6, 0.32), mat="wicker")
-    f.black_box(m, props, "shelf_top_boxes", (-W / 2 + 0.2, 0.2, 2.145), (0.25, 0.45, 0.12))
+    layout = [
+        ["dense", "mixed", "stacked"],
+        ["dense", "leaning", "mixed"],
+        ["mixed", "mixed", "objects+printer"],
+        ["leaning", "leaning", "files+laptop"],
+        ["files+jars", "dense", "files+camera"],
+        ["dense", "stacked", "objects+clock"],
+    ]
+    books.bookshelf(m, c.books, furn, props, "bookshelf", (-W / 2 + shelf_depth / 2, BOOKSHELF[0], 0),
+                    bays=[bay_w] * bays, shelves=[0.08, 0.46, 0.82, 1.16, 1.48, 1.80, 2.12], layout=layout,
+                    depth=shelf_depth, rot_z=math.pi / 2, seed=3)
+    top = 2.145
+    books.basket(c.books, props, "basket", (-W / 2 + 0.19, -0.95, top), rot_z=math.pi / 2)
+    books.basket_handle(m, props, "basket_handle", (-W / 2 + 0.19, -0.95, top + 0.29), rot_z=math.pi / 2)
+    books.storage_box(m, props, "shelf_top_boxes", (-W / 2 + 0.19, 0.55, top), (0.42, 0.28, 0.11),
+                      mat="plastic_black", rot_z=math.pi / 2 + 0.03)
+    books.storage_box(m, props, "shelf_top_box_cream", (-W / 2 + 0.18, 0.95, top), (0.32, 0.26, 0.12),
+                      mat="cardboard", rot_z=math.pi / 2 - 0.04)
 
 
 def build_desk(c):

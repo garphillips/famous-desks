@@ -25,60 +25,6 @@ def table(m, col, name, loc, size, rot_z=0.0, top="lino_green", frame="pine", le
     return b.build(name, col, loc, rot_z)
 
 
-def bookshelf(m, col, books_mats, name, loc, bays, shelves, depth=0.32, rot_z=0.0, seed=1, fill=0.85):
-    """bays: list of bay widths (m). shelves: z heights of each board, bottom to top."""
-    rng = random.Random(seed)
-    total = sum(bays) + 0.025 * (len(bays) + 1)
-    top = shelves[-1]
-    carcass = Builder()
-    books = Builder()
-    x = -total / 2
-    carcass.box((0.025, depth, top + 0.025), (x + 0.0125, 0, (top + 0.025) / 2), m["pine"])
-    for bay in bays:
-        x0 = x + 0.025
-        x1 = x0 + bay
-        for z in shelves:
-            carcass.box((bay, depth, 0.022), ((x0 + x1) / 2, 0, z + 0.011), m["pine"])
-        carcass.box((0.025, depth, top + 0.025), (x1 + 0.0125, 0, (top + 0.025) / 2), m["pine"])
-        for z0, z1 in zip(shelves[:-1], shelves[1:]):
-            _fill_shelf(books, rng, books_mats, m, x0, x1, z0 + 0.022, z1, depth, fill)
-        x = x1
-    carcass.box((total, 0.01, top), (0, depth / 2 - 0.005, top / 2), m["plaster"])
-    shelf = carcass.build(name, col, loc, rot_z)
-    books.build(f"{name}_books", col, loc, rot_z)
-    return shelf
-
-
-def _fill_shelf(b, rng, books_mats, m, x0, x1, z0, z1, depth, fill):
-    gap = z1 - z0
-    x = x0 + 0.005
-    while x < x1 - 0.03:
-        r = rng.random()
-        if r > fill:
-            x += rng.uniform(0.04, 0.15)  # gap (later: ornaments, cameras)
-        elif r < 0.12:
-            w = min(rng.uniform(0.18, 0.30), x1 - x - 0.01)
-            if w < 0.15:
-                break
-            zz = z0
-            for _ in range(rng.randint(2, 8)):
-                t = rng.uniform(0.015, 0.045)
-                if zz + t > z1 - 0.02:
-                    break
-                bw = w - rng.uniform(0, 0.04)
-                b.box((bw, rng.uniform(0.15, depth - 0.04), t), (x + bw / 2, -0.02, zz + t / 2), rng.choice(books_mats))
-                zz += t
-            x += w + 0.01
-        else:
-            t = rng.uniform(0.012, 0.05)
-            if x + t > x1:
-                break
-            h = min(gap - 0.02, rng.uniform(0.17, 0.33))
-            dd = rng.uniform(0.13, depth - 0.03)
-            b.box((t, dd, h), (x + t / 2, -depth / 2 + dd / 2 + 0.01, z0 + h / 2), rng.choice(books_mats))
-            x += t + rng.uniform(0, 0.003)
-
-
 def monitor(m, col, name, loc, rot_z=0.0, width=0.62, height=0.42, lift=0.12, body="aluminium"):
     """Cinema-display style screen on an aluminium foot. Screen faces -Y."""
     b = Builder()
