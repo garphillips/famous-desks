@@ -71,6 +71,22 @@ def floor_plan(scene, spec):
             "openings": openings, "items": items}
 
 
+def space_title(slug):
+    """Title of another space: from content/spaces/index.json, else its room script's SPEC."""
+    try:
+        with open(os.path.join(CONTENT, "index.json")) as fh:
+            for s in json.load(fh)["spaces"]:
+                if s["slug"] == slug:
+                    return s["title"]
+    except (OSError, ValueError, KeyError):
+        pass
+    try:
+        import importlib
+        return importlib.import_module(f"rooms.{slug.replace('-', '_')}").SPEC["title"]
+    except Exception:  # noqa: BLE001 - unknown room: the website falls back to the slug
+        return ""
+
+
 def main():
     argv = sys.argv[sys.argv.index("--") + 1:] if "--" in sys.argv else []
     p = argparse.ArgumentParser()
@@ -133,6 +149,10 @@ def main():
         }
         if hs.get("target") is not None:
             entry["target"] = hs["target"]
+            if hs["target"]:
+                entry["targetTitle"] = space_title(hs["target"])
+            if hs.get("arrive"):
+                entry["arrive"] = hs["arrive"]  # viewpoint slug to land at in the target space
         data["hotspots"].append(entry)
 
     with open(os.path.join(out, "space.json"), "w") as fh:
@@ -144,7 +164,11 @@ def main():
     if os.path.exists(index_path):
         with open(index_path) as fh:
             index = json.load(fh)
-    index["spaces"] = [s for s in index["spaces"] if s["slug"] != slug] + [{"slug": slug, "title": title}]
+    order = json.loads(scene["spec_json"]).get("order")
+    me = {"slug": slug, "title": title, **({"order": order} if order is not None else {})}
+    index["spaces"] = [s for s in index["spaces"] if s["slug"] != slug] + [me]
+    # stable however the spaces were exported: by SPEC "order", then unordered ones by slug
+    index["spaces"].sort(key=lambda s: (s.get("order") is None, s.get("order") or 0, s["slug"]))
     with open(index_path, "w") as fh:
         json.dump(index, fh, indent=2)
 

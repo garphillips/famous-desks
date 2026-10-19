@@ -52,6 +52,7 @@ DESK_X = span_x(710, 1072)[0]
 SPEC = {
     "slug": "jobs-room",
     "title": "The Jobs Room",
+    "order": 1,
     "width": W,
     "depth": D,
     "height": 2.75,
@@ -162,7 +163,8 @@ def build():
     tour.hotspot("tripod", "Tripod", (cx + 0.15, cy + 0.1, 1.6))
     tour.hotspot("east_window", "Garden window", (W / 2 - 0.1, E_WINDOW[0], 1.85))
     tour.hotspot("floor_lamp", "Floor lamp", (lx, ly, 1.75))
-    tour.hotspot("entrance", "Entrance", (DOOR[0], -D / 2 + 0.05, 1.4), kind="door", icon="door", target="")
+    tour.hotspot("entrance", "Entrance", (DOOR[0], -D / 2 + 0.05, 1.4), kind="door", icon="door",
+                 target="hallway", arrive="door")
 
     # Matches "Upscaled facing south.png" (looks north at the desk) and
     # "upscaled facing north.png" (looks west at the bookshelf)

@@ -1,7 +1,8 @@
 /** Mirrors content/spaces/<slug>/space.json, written by blender/export.py. */
 
 export interface SpaceIndex {
-	spaces: { slug: string; title: string }[];
+	/** Sorted by the optional SPEC "order", then slug. */
+	spaces: { slug: string; title: string; order?: number }[];
 }
 
 export interface Viewpoint {
@@ -32,6 +33,10 @@ export interface Hotspot {
 	views: Record<string, HotspotView>;
 	/** For doors: the space slug they lead to ('' = not connected yet). */
 	target?: string;
+	/** For doors: viewpoint slug to land at in the target space (the one nearest this door). */
+	arrive?: string;
+	/** For doors: the target space's title, for "Go to <title>". */
+	targetTitle?: string;
 }
 
 export interface FloorPlan {

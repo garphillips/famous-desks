@@ -101,7 +101,7 @@
 
 	function openDetail(h: Hotspot) {
 		if (h.kind === 'door') {
-			if (h.target) goto(`/${h.target}`);
+			if (h.target) goto(h.arrive ? `/${h.target}/${h.arrive}` : `/${h.target}`);
 			return;
 		}
 		const { yaw, pitch } = h.views[viewpoint.slug];
