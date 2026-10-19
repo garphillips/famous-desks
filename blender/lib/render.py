@@ -140,12 +140,16 @@ def set_camera_finish(scene, cam):
     scene.render.use_compositing = bool(nt) and kind != "plan"
     if not nt or kind == "plan":
         return
-    pano = cam.data.type == "PANO"
+    # Cube faces are stitched edge to edge in the viewer, so nothing that depends on
+    # position in the frame (vignette, aberration) or spreads across it (bloom) can
+    # run per face without leaving seams.
+    face = kind == "cube_face"
+    pano = face or cam.data.type == "PANO"
     f = FINISH
     bloom = nt.nodes["bloom"]
     # the compositor sees scene-linear light before the view exposure
     bloom.inputs["Threshold"].default_value = f["bloom_from"] / 2 ** scene.view_settings.exposure
-    bloom.inputs["Strength"].default_value = f["bloom"]
+    bloom.inputs["Strength"].default_value = 0.0 if face else f["bloom"]
     nt.nodes["aberration"].inputs["Dispersion"].default_value = 0.0 if pano else f["aberration"]
     nt.nodes["vignette"].inputs[1].default_value = 0.0 if pano else -f["vignette"] / 2
     nt.nodes["grain"].inputs[1].default_value = 2 * f["grain"]
@@ -153,7 +157,14 @@ def set_camera_finish(scene, cam):
     nt.nodes["white_balance"].inputs[7].default_value = (*scene.get("white_balance", f["white_balance"]), 1.0)
 
 
-def render_camera(scene, cam, out_dir, scale=100, filename=None, fmt="PNG"):
+
+# --- Output and format (panoramas, cube faces, close-ups) -----------------------------
+# Kept apart from the quality/light-path settings above.
+
+
+def render_camera(scene, cam, out_dir, scale=100, filename=None, fmt="PNG", quality=85):
+    """Renders `cam` at its "res" x scale% to <out_dir>/<filename>.<ext>.
+    quality applies to WEBP/JPEG; PNG is written as 8-bit RGB (cube faces for tiling)."""
     hidden = []
     for col_name in cam.get("hide", []):
         col = bpy.data.collections.get(col_name)
@@ -170,7 +181,11 @@ def render_camera(scene, cam, out_dir, scale=100, filename=None, fmt="PNG"):
     settings = scene.render.image_settings
     settings.file_format = fmt
     if fmt in ("WEBP", "JPEG"):
-        settings.quality = 85
+        settings.quality = quality
+    else:
+        settings.color_mode = "RGB"
+        settings.color_depth = "8"
+        settings.compression = 15
     scene.camera = cam
     w, h = cam["res"]
     scene.render.resolution_x, scene.render.resolution_y = int(w), int(h)

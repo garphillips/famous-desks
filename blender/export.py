@@ -1,22 +1,33 @@
 """Export a built room for the website: tour data, panoramas and floor plan.
 
     blender -b blender/build/jobs_room.blend -P blender/export.py -- [--no-render] [--only-details]
-                                                                    [--samples 64] [--scale 100]
+        [--samples 64] [--scale 100] [--only office,desk] [--face-size 2560] [--tile-size 512]
+        [--equirect-width 4096] [--detail-width 2400]
 
 Writes content/spaces/<slug>/:
     space.json          viewpoints, hotspots (with yaw/pitch per viewpoint), plan mapping
-    panos/<vp>.webp     equirectangular panoramas (centre = north, yaw clockwise)
+    panos/<vp>/         cube-face tile pyramid + preview strip (see PanoTiles in web/src/lib/types.ts)
+    panos/<vp>.webp     equirectangular panorama (centre = north, yaw clockwise), the fallback
     plan.webp           top-down floor plan for the minimap
     details/<hotspot>/closeup-<n>.webp   close-up renders from the hotspot's detail cameras
     details/<hotspot>/model.glb          the hotspot's `model` object, for the 3D view
 and updates content/spaces/index.json (the list of all spaces).
+
+Panoramas are rendered as six 90° perspective cube faces (--face-size px square, default
+2560 ~ the sharpness of an 8192x4096 equirect: 8192/pi) into blender/build/cube/<slug>/<vp>/,
+then web/scripts/tile-pano.mjs (Node + sharp; needs `npm ci` in web/) cuts them into 512 px
+WebP tiles at q85 per level (512, 1024, 2048, 2560), a 6x256 preview strip, and reprojects
+the 4096 equirect fallback. Tiling runs in the background while the next viewpoint renders.
 """
 
 import argparse
 import json
 import math
 import os
+import shutil
+import subprocess
 import sys
+import time
 
 import bpy
 from mathutils import Matrix, Vector
@@ -25,8 +36,12 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, HERE)
 
 from lib.render import configure_cycles, render_camera  # noqa: E402
+from lib.tour import CUBE_FACES, cube_face_camera, remove_cube_face_camera  # noqa: E402
 
-CONTENT = os.path.join(os.path.dirname(HERE), "content", "spaces")
+ROOT = os.path.dirname(HERE)
+CONTENT = os.path.join(ROOT, "content", "spaces")
+CUBE_BUILD = os.path.join(HERE, "build", "cube")
+TILER = os.path.join(ROOT, "web", "scripts", "tile-pano.mjs")
 OCCLUSION_TOLERANCE = 0.4  # metres: hits this close to a hotspot count as the object itself
 
 
@@ -118,8 +133,46 @@ def export_model(obj, path):
     print(f"Wrote {path} ({os.path.getsize(path) / 1e6:.2f} MB)")
 
 
-def export_details(scene, hotspots, out, render, scale):
-    """Close-up renders and glTF models per hotspot. Returns {slug: detail entry}."""
+def render_cube_faces(scene, vp, folder, size):
+    """Renders the six cube faces of viewpoint `vp` as <folder>/<face>.png."""
+    os.makedirs(folder, exist_ok=True)
+    try:
+        for face in CUBE_FACES:
+            cam = cube_face_camera(vp, face, size)
+            render_camera(scene, cam, folder, filename=face, fmt="PNG")
+    finally:
+        remove_cube_face_camera()
+        scene.camera = vp
+
+
+def start_tiling(faces, out_dir, equirect, a):
+    """Runs the tiler in the background; returns the process."""
+    node = shutil.which("node")
+    if not node:
+        raise SystemExit("export.py: `node` not found on PATH; it is needed to tile the panoramas")
+    if not os.path.isdir(os.path.join(ROOT, "web", "node_modules", "sharp")):
+        raise SystemExit("export.py: sharp is missing; run `npm ci` in web/ first")
+    cmd = [node, TILER, "--faces", faces, "--out", out_dir, "--equirect", equirect,
+           "--equirect-width", str(a.equirect_width), "--tile", str(a.tile_size), "--quality", "85"]
+    return subprocess.Popen(cmd)
+
+
+def tiles_entry(out, vp_slug):
+    """The viewpoint's `tiles` field, from the tiler's panos/<vp>/tiles.json (if tiled)."""
+    try:
+        with open(os.path.join(out, "panos", vp_slug, "tiles.json")) as fh:
+            meta = json.load(fh)
+    except (OSError, ValueError):
+        return None
+    path = f"panos/{vp_slug}"
+    return {"path": path, "faceSize": meta["faceSize"], "tileSize": meta["tileSize"],
+            "levels": meta["levels"], "bleed": meta["bleed"], "format": meta["format"],
+            "preview": f"{path}/preview.webp", "previewSize": meta["previewSize"]}
+
+
+def export_details(scene, hotspots, out, render, scale, width=2400, quality=88):
+    """Close-up renders and glTF models per hotspot. Returns {slug: detail entry}.
+    Close-ups are rendered `width` px wide (keeping the camera's aspect) x scale%."""
     cams = sorted((o for o in scene.objects if o.get("kind") == "detail"),
                   key=lambda o: (o["hotspot"], o["index"]))
     details = {}
@@ -134,7 +187,10 @@ def export_details(scene, hotspots, out, render, scale):
             if render:
                 os.makedirs(folder, exist_ok=True)
                 print(f"Rendering close-up {slug}/{name}")
-                render_camera(scene, cam, folder, scale, filename=name, fmt="WEBP")
+                pct = max(1, round(scale * width / cam["res"][0]))
+                t0 = time.time()
+                render_camera(scene, cam, folder, pct, filename=name, fmt="WEBP", quality=quality)
+                print(f"Close-up {slug}/{name}: {time.time() - t0:.1f} s")
             if os.path.exists(path):
                 images.append(f"{rel}/{name}.webp")
         detail = {"images": images}
@@ -161,6 +217,10 @@ def main():
     p.add_argument("--only", default="", help="comma list of viewpoint slugs to render (plan is skipped)")
     p.add_argument("--only-details", action="store_true",
                    help="re-export close-ups and models (and space.json) without rendering panoramas")
+    p.add_argument("--face-size", type=int, default=2560, help="cube face px (2560 ~ an 8192 equirect)")
+    p.add_argument("--tile-size", type=int, default=512)
+    p.add_argument("--equirect-width", type=int, default=4096, help="width of the fallback equirect")
+    p.add_argument("--detail-width", type=int, default=2400, help="close-up width before --scale")
     a = p.parse_args(argv)
 
     scene = bpy.context.scene
@@ -226,14 +286,24 @@ def main():
         configure_cycles(scene, a.samples)
     # --only re-renders a few panoramas: keep the existing close-ups
     render_details = not a.no_render and (a.only_details or not a.only)
-    details = export_details(scene, hotspots, out, render=render_details, scale=a.scale)
+    details = export_details(scene, hotspots, out, render=render_details, scale=a.scale,
+                             width=a.detail_width)
     for entry in data["hotspots"]:
         if entry["slug"] in details:
             entry["detail"] = details[entry["slug"]]
 
-    with open(os.path.join(out, "space.json"), "w") as fh:
-        json.dump(data, fh, indent=2)
-    print(f"Wrote {os.path.join(out, 'space.json')}")
+    def write_space():
+        for entry in data["viewpoints"]:
+            tiles = tiles_entry(out, entry["slug"])
+            if tiles:
+                entry["tiles"] = tiles
+            else:
+                entry.pop("tiles", None)
+        with open(os.path.join(out, "space.json"), "w") as fh:
+            json.dump(data, fh, indent=2)
+        print(f"Wrote {os.path.join(out, 'space.json')}")
+
+    write_space()
 
     index_path = os.path.join(CONTENT, "index.json")
     index = {"spaces": []}
@@ -253,11 +323,23 @@ def main():
     only = [s for s in a.only.split(",") if s]
     if not only:
         render_camera(scene, plan, out, filename="plan", fmt="WEBP")
+    # --scale shrinks the faces too, but never below one tile
+    size = max(a.tile_size, round(a.face_size * a.scale / 100))
+    tilers = []
     for vp in viewpoints:
         if only and vp["slug"] not in only:
             continue
-        print(f"Rendering panorama {vp['slug']}")
-        render_camera(scene, vp, os.path.join(out, "panos"), a.scale, filename=vp["slug"], fmt="WEBP")
+        faces = os.path.join(CUBE_BUILD, slug, vp["slug"])
+        print(f"Rendering panorama {vp['slug']}: 6 cube faces of {size} px")
+        t0 = time.time()
+        render_cube_faces(scene, vp, faces, size)
+        print(f"Panorama {vp['slug']}: rendered in {time.time() - t0:.1f} s")
+        tilers.append(start_tiling(faces, os.path.join(out, "panos", vp["slug"]),
+                                   os.path.join(out, "panos", f"{vp['slug']}.webp"), a))
+    failed = [t for t in tilers if t.wait() != 0]
+    write_space()
+    if failed:
+        raise SystemExit(f"export.py: tiling failed for {len(failed)} panorama(s)")
 
 
 main()

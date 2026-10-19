@@ -10,10 +10,41 @@ export interface Viewpoint {
 	title: string;
 	/** Room metres: x east, y north, z up. */
 	position: [number, number, number];
-	/** Panorama path relative to the space folder. */
+	/** Equirectangular panorama path relative to the space folder (fallback when there are no tiles). */
 	pano: string;
 	/** Degrees, 0 = north, clockwise. */
 	initialYaw: number;
+	/** Cube-face tile pyramid of the same panorama, when it was rendered as cube faces. */
+	tiles?: PanoTiles;
+}
+
+/**
+ * A panorama as six 90° cube faces, each a multi-resolution tile pyramid
+ * (written by blender/export.py through web/scripts/tile-pano.mjs).
+ *
+ * Faces, in this order: n, e, s, w (looking north, east, south, west, image up = up),
+ * u (looking up; image top = south, right = east) and d (looking down; image top = north,
+ * right = east). Tile files: `<path>/<level>/<face>-<row>-<col>.webp`, where `level` is the
+ * face size in pixels at that level. Each tile holds up to tileSize x tileSize pixels of the
+ * face plus a `bleed`-pixel border copied from its neighbours (clamped at the face edges),
+ * so filtering is seamless across tile boundaries.
+ */
+export interface PanoTiles {
+	/** Folder relative to the space folder, e.g. panos/office. */
+	path: string;
+	/** Face size in pixels at the finest level. */
+	faceSize: number;
+	tileSize: number;
+	/** Face sizes in pixels, coarsest first; the last one is faceSize. */
+	levels: number[];
+	/** Border pixels around every tile (and preview face). */
+	bleed: number;
+	/** Image format of the tiles (file extension). */
+	format: 'webp';
+	/** Low-res preview for first paint: the six faces side by side (n e s w u d), relative to the space folder. */
+	preview: string;
+	/** Face size of the preview, without the bleed. */
+	previewSize: number;
 }
 
 export interface HotspotView {

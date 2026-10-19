@@ -22,8 +22,9 @@ starter/        private reference images — git-ignored, never published
 ## Quick start
 
 ```sh
+(cd web && npm ci)                    # once: the panorama tiler needs sharp
 blender/pipeline.sh jobs_room          # build + export panoramas, plan and space.json to content/
-cd web && npm install && npm run dev   # tour at http://localhost:5173
+cd web && npm run dev                  # tour at http://localhost:5173
 ```
 
 `pipeline.sh` also takes `--draft` (fast low-res renders) or `--no-render` (data only).
@@ -46,6 +47,11 @@ $BLENDER -b blender/build/jobs_room.blend -P blender/render.py -- --cams referen
 
 - Metres, Z up, +Y is north, room interior centred on the origin, floor at z=0.
 - Panoramas are equirectangular; the image centre faces north and yaw runs
-  clockwise (east = 90°).
+  clockwise (east = 90°). For sharpness they are rendered as six 90° cube faces
+  (2560 px, about an 8K equirect; faces n e s w u d, see `CUBE_FACES` in
+  `blender/lib/tour.py`) and cut by `web/scripts/tile-pano.mjs` (Node + sharp) into
+  512 px WebP tile levels under `panos/<vp>/`, which the viewer streams by level of
+  detail. A 4096 equirect `panos/<vp>.webp` is kept as the fallback.
+  `?fov=40` on a tour URL opens zoomed in; `?tiles=0` forces the equirect.
 - Cameras named `vp_*` are tour viewpoints; empties named `hs_*` are hotspots.
   Their custom properties (title, icon, summary, kind) feed the website.

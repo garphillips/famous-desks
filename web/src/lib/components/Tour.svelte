@@ -2,7 +2,7 @@
 	import { onMount, untrack } from 'svelte';
 	import { goto } from '$app/navigation';
 	import { page } from '$app/state';
-	import { PanoViewer, prefersReducedMotion } from '$lib/viewer/PanoViewer';
+	import { PanoViewer, prefersReducedMotion, type PanoSource } from '$lib/viewer/PanoViewer';
 	import { spaceUrl, type Hotspot, type Space, type Viewpoint } from '$lib/types';
 	import TopBar from './TopBar.svelte';
 	import HotspotMarker from './HotspotMarker.svelte';
@@ -81,6 +81,13 @@
 
 	const panoUrl = (v: Viewpoint) => spaceUrl(space.slug, v.pano);
 
+	// The cube-face tiles when the viewpoint has them (?tiles=0 forces the equirect, for comparison).
+	function panoSource(v: Viewpoint): PanoSource {
+		const t = page.url.searchParams.get('tiles') === '0' ? undefined : v.tiles;
+		const tiles = t && { ...t, path: spaceUrl(space.slug, t.path), preview: spaceUrl(space.slug, t.preview) };
+		return { url: panoUrl(v), tiles };
+	}
+
 	function show(viewer: PanoViewer, v: Viewpoint) {
 		pinned = peek = null;
 		detail = null;
@@ -99,10 +106,10 @@
 			moving = true;
 			// Compass bearing from here to there: x east, y north, clockwise from north.
 			const yaw = (Math.atan2(v.position[0] - from.position[0], v.position[1] - from.position[1]) * 180) / Math.PI;
-			shown = viewer.transitionTo(panoUrl(v), { yaw, reduced: prefersReducedMotion() });
+			shown = viewer.transitionTo(panoSource(v), { yaw, reduced: prefersReducedMotion() });
 		} else {
 			loading = true;
-			shown = viewer.setPanorama(panoUrl(v)).then(() => {
+			shown = viewer.setPanorama(panoSource(v)).then(() => {
 				if (token !== showToken) return;
 				if (target) {
 					viewer.lookAt(target.views[v.slug].yaw, Math.max(-20, Math.min(20, target.views[v.slug].pitch)));
@@ -110,6 +117,9 @@
 				} else {
 					viewer.lookAt(v.initialYaw);
 				}
+				// ?fov=<degrees> opens zoomed in (e.g. with ?h= to look closely at a hotspot)
+				const fov = Number(page.url.searchParams.get('fov'));
+				if (fov) viewer.setFov(fov);
 			});
 		}
 		shown
@@ -117,7 +127,7 @@
 			.finally(() => {
 				if (token !== showToken) return;
 				loading = moving = false;
-				viewer.prefetch(neighbours(v).map(panoUrl));
+				viewer.prefetch(neighbours(v).map(panoSource));
 			});
 	}
 
