@@ -18,6 +18,7 @@ import bpy
 from mathutils import Euler, Matrix, Vector
 
 SHARP_ANGLE = math.radians(42)
+SCREEN_GLOW = 0.2  # lit-screen emission, balanced against the room's exposure
 
 
 # --------------------------------------------------------------------------- materials
@@ -95,31 +96,139 @@ def materials():
     }
 
 
-def _wallpaper(name="hero_wallpaper", w=480, h=300):
-    """A calm abstract gradient for the lit screen, generated and packed into
-    the .blend (and the .glb). No UI, text or logos."""
+# --------------------------------------------------------------------------- images
+
+def photo_pixels(asset_id, filename, width):
+    """An asset photo scaled to `width` px, as a float sRGB array (rows top-down),
+    or None when the asset isn't fetched. The full-size image is not kept."""
+    import numpy as np
+
+    from . import assets
+    try:
+        path = assets.path(asset_id, filename)
+    except (KeyError, FileNotFoundError) as err:
+        print(f"WARNING: {err}; using a generated stand-in")
+        return None
+    img = bpy.data.images.load(path)
+    w, h = img.size
+    img.scale(width, max(1, round(h * width / w)))
+    w, h = img.size
+    px = np.empty(w * h * 4, np.float32)
+    img.pixels.foreach_get(px)
+    bpy.data.images.remove(img)
+    return px.reshape(h, w, 4)[::-1, :, :3].copy()
+
+
+def crop(arr, box):
+    """box = (left, top, right, bottom) as fractions of the image."""
+    h, w = arr.shape[:2]
+    l, t, r, b = box
+    return arr[int(t * h):int(b * h), int(l * w):int(r * w)]
+
+
+def resize(arr, w, h):
+    """Box-filtered resize (every output pixel averages at least one source pixel)."""
+    import numpy as np
+
+    sh, sw = arr.shape[:2]
+
+    def bins(n_src, n):
+        lo = np.minimum(np.floor(np.linspace(0, n_src, n + 1)[:-1]).astype(int), n_src - 1)
+        hi = np.maximum(np.floor(np.linspace(0, n_src, n + 1)[1:]).astype(int), lo + 1)
+        return lo, hi
+
+    y0, y1 = bins(sh, h)
+    x0, x1 = bins(sw, w)
+    cs = np.cumsum(np.cumsum(np.pad(arr.astype(np.float64), ((1, 0), (1, 0), (0, 0))), 0), 1)
+    tot = cs[y1][:, x1] - cs[y0][:, x1] - cs[y1][:, x0] + cs[y0][:, x0]
+    area = ((y1 - y0)[:, None] * (x1 - x0)[None, :])[..., None]
+    return (tot / area).astype(np.float32)
+
+
+def packed_image(name, rgb):
+    """A packed image from a top-down float sRGB array."""
+    import numpy as np
+
+    h, w = rgb.shape[:2]
+    img = bpy.data.images.new(name, w, h, alpha=False)
+    rgba = np.concatenate([np.clip(rgb, 0, 1), np.ones((h, w, 1), np.float32)], axis=2)
+    img.pixels.foreach_set(rgba[::-1].astype(np.float32).ravel())
+    img.pack()
+    return img
+
+
+def _desktop(name="hero_desktop", w=960, h=600):
+    """A believable desktop for the lit screen: a forest photo wallpaper, a thin
+    menu bar and a few abstract windows (photo thumbnails, grey text lines).
+    Generated and packed into the .blend (and the .glb). No real UI, text or logos."""
     img = bpy.data.images.get(name)
     if img:
         return img
     import numpy as np
 
-    img = bpy.data.images.new(name, w, h, alpha=False)
-    y, x = np.mgrid[0:h, 0:w].astype(np.float32)
-    u, v = x / (w - 1), y / (h - 1)  # v = 0 at the bottom
-    deep = np.array([0.015, 0.03, 0.06])
-    teal = np.array([0.05, 0.20, 0.24])
-    warm = np.array([0.55, 0.32, 0.18])
-    t = np.clip(v * 0.9 + 0.15 * np.sin(u * 3.2 + 0.6), 0, 1)[..., None]
-    col = deep * (1 - t) + teal * t
-    # soft dune-like band and a warm glow, all very low frequency
-    band = np.exp(-((v - 0.42 - 0.12 * np.sin(u * 4.0 + 1.2)) / 0.09) ** 2)[..., None]
-    glow = np.exp(-(((u - 0.72) / 0.25) ** 2 + ((v - 0.62) / 0.3) ** 2))[..., None]
-    col = col + band * teal * 0.9 + glow * warm * 0.55
-    col = np.clip(col, 0, 1) ** (1 / 2.2)  # sRGB-ish
-    rgba = np.concatenate([col, np.ones((h, w, 1), np.float32)], axis=2).astype(np.float32)
-    img.pixels.foreach_set(rgba.ravel())
-    img.pack()
-    return img
+    rng = np.random.default_rng(5)
+    meadow = photo_pixels("print_autumn_meadow", "DSC_0415.jpg", 1600)
+    pines = photo_pixels("print_misty_pines", "misty_pines.jpg", 2400)
+    if meadow is not None:
+        wall = resize(crop(meadow, (0.05, 0.72, 0.5, 1.0)), w, h)
+        wall = wall ** 1.6 * np.array([0.6, 0.9, 0.65])  # deeper, greener foliage
+    else:
+        y = np.linspace(0, 1, h)[:, None, None]
+        wall = np.broadcast_to(0.1 + 0.25 * y * np.array([0.3, 0.6, 0.4]), (h, w, 3)).copy()
+    canvas = wall.astype(np.float32)
+
+    def rect(x0, y0, x1, y1, col, alpha=1.0):
+        x0, x1, y0, y1 = int(x0 * w), int(x1 * w), int(y0 * h), int(y1 * h)
+        region = canvas[y0:y1, x0:x1]
+        region[:] = region * (1 - alpha) + np.asarray(col, np.float32) * alpha
+
+    def shadow(x0, y0, x1, y1):
+        for k in range(6):
+            rect(x0 - 0.002 * k, y0 + 0.004 * k, x1 + 0.002 * k, y1 + 0.006 * k, (0, 0, 0), 0.06)
+
+    def text(x0, y0, x1, y1, rows):
+        for r in range(rows):
+            yy = y0 + (y1 - y0) * r / rows
+            rect(x0, yy, x0 + (x1 - x0) * rng.uniform(0.4, 1.0), yy + (y1 - y0) / rows * 0.45, (0.55, 0.55, 0.56))
+
+    def thumb(src, x0, y0, x1, y1):
+        tw, th = int((x1 - x0) * w), int((y1 - y0) * h)
+        if src is None or tw < 2 or th < 2:
+            rect(x0, y0, x1, y1, rng.uniform(0.2, 0.6, 3))
+            return
+        sh, sw = src.shape[:2]
+        cw = rng.uniform(0.12, 0.3)
+        cx, cy = rng.uniform(0, 1 - cw), rng.uniform(0.4, 0.62)
+        part = crop(src, (cx, cy, cx + cw, min(1.0, cy + cw * sw / sh * th / tw)))
+        canvas[int(y0 * h):int(y0 * h) + th, int(x0 * w):int(x0 * w) + tw] = resize(part, tw, th)
+
+    def window(x0, y0, x1, y1, body=(0.93, 0.93, 0.93)):
+        shadow(x0, y0, x1, y1)
+        rect(x0, y0, x1, y1, body)
+        rect(x0, y0, x1, y0 + 0.035, (0.80, 0.80, 0.81))
+        rect(x0, y0 + 0.035, x1, y0 + 0.037, (0.62, 0.62, 0.63))
+        for k in range(3):
+            rect(x1 - 0.02 - 0.018 * k, y0 + 0.012, x1 - 0.01 - 0.018 * k, y0 + 0.024, (0.6, 0.6, 0.61))
+
+    rect(0, 0, 1, 0.03, (0.9, 0.9, 0.9), 0.85)  # menu bar
+    for k in range(5):
+        rect(0.02 + 0.06 * k, 0.009, 0.06 + 0.06 * k, 0.021, (0.35, 0.35, 0.36))
+    # a document window behind, a photo browser in front, a small preview
+    window(0.07, 0.12, 0.42, 0.86)
+    text(0.09, 0.2, 0.40, 0.8, 18)
+    window(0.3, 0.2, 0.74, 0.78, body=(0.88, 0.88, 0.89))
+    rect(0.3, 0.237, 0.38, 0.78, (0.82, 0.83, 0.85))
+    text(0.31, 0.26, 0.37, 0.5, 8)
+    for i in range(4):
+        for j in range(3):
+            x = 0.395 + i * 0.085
+            y = 0.27 + j * 0.16
+            thumb(pines if (i + j) % 2 else meadow, x, y, x + 0.072, y + 0.11)
+            rect(x + 0.01, y + 0.12, x + 0.06, y + 0.13, (0.5, 0.5, 0.52))
+    window(0.6, 0.5, 0.86, 0.9, body=(0.15, 0.15, 0.16))
+    thumb(pines, 0.615, 0.56, 0.845, 0.87)
+    rect(0.0, 0.94, 1.0, 1.0, (0.85, 0.85, 0.86), 0.25)  # status strip
+    return packed_image(name, canvas)
 
 
 def _screen_image():
@@ -127,11 +236,11 @@ def _screen_image():
     if mat:
         return mat
     mat = _principled("hero_screen_image", (0.0, 0.0, 0.0), 0.12,
-                      **{"Emission Color": (1.0, 1.0, 1.0), "Emission Strength": 0.9})
+                      **{"Emission Color": (1.0, 1.0, 1.0), "Emission Strength": SCREEN_GLOW})
     nt = mat.node_tree
     bsdf = next(n for n in nt.nodes if n.type == "BSDF_PRINCIPLED")
     tex = nt.nodes.new("ShaderNodeTexImage")
-    tex.image = _wallpaper()
+    tex.image = _desktop()
     nt.links.new(tex.outputs["Color"], bsdf.inputs["Emission Color"])
     return mat
 
@@ -289,6 +398,103 @@ class HeroBuilder:
         bmesh.ops.transform(self.bm, matrix=self.matrix, verts=verts)
         return self._finish(verts, mat, bevel, 2)
 
+    def sphere(self, radius, center, mat, scale=(1, 1, 1), rot=(0, 0, 0), u=24, v=12):
+        res = bmesh.ops.create_uvsphere(self.bm, u_segments=u, v_segments=v, radius=radius)
+        m = self.matrix @ self._local(center, rot) @ Matrix.Diagonal((*scale, 1.0))
+        bmesh.ops.transform(self.bm, matrix=m, verts=res["verts"])
+        return self._finish(res["verts"], mat)
+
+    def lathe(self, profile, center, mat, rot=(0, 0, 0), segments=32):
+        """Surface of revolution about local Z. profile: (r, z) points; r=0 closes on the axis."""
+        rings = []
+        for r, z in profile:
+            if r < 1e-6:
+                rings.append([self.bm.verts.new((0, 0, z))])
+            else:
+                rings.append([self.bm.verts.new((r * math.cos(a), r * math.sin(a), z))
+                              for a in (2 * math.pi * i / segments for i in range(segments))])
+        faces = []
+        for r0, r1 in zip(rings, rings[1:]):
+            for i in range(segments):
+                j = (i + 1) % segments
+                quad = [r0[min(i, len(r0) - 1)], r0[min(j, len(r0) - 1)],
+                        r1[min(j, len(r1) - 1)], r1[min(i, len(r1) - 1)]]
+                quad = [v for k, v in enumerate(quad) if v not in quad[:k]]
+                if len(quad) >= 3:
+                    faces.append(self.bm.faces.new(quad))
+        bmesh.ops.recalc_face_normals(self.bm, faces=faces)
+        verts = [v for ring in rings for v in ring]
+        bmesh.ops.transform(self.bm, matrix=self.matrix @ self._local(center, rot), verts=verts)
+        return self._finish(verts, mat)
+
+    def tube(self, points, radius, mat, sides=8, caps=True):
+        """Round tube along a polyline (cables, cords, wire arms)."""
+        pts = [Vector(p) for p in points]
+        n = len(pts)
+        tangents = [(pts[min(i + 1, n - 1)] - pts[max(i - 1, 0)]).normalized() for i in range(n)]
+        normal = tangents[0].orthogonal().normalized()
+        rings = []
+        for p, t in zip(pts, tangents):
+            normal = (normal - t * normal.dot(t)).normalized()
+            side = t.cross(normal)
+            rings.append([self.bm.verts.new(p + radius * (math.cos(a) * normal + math.sin(a) * side))
+                          for a in (2 * math.pi * k / sides for k in range(sides))])
+        for r0, r1 in zip(rings, rings[1:]):
+            for k in range(sides):
+                kk = (k + 1) % sides
+                self.bm.faces.new((r0[k], r0[kk], r1[kk], r1[k]))
+        if caps:
+            self.bm.faces.new(list(reversed(rings[0])))
+            self.bm.faces.new(rings[-1])
+        verts = [v for ring in rings for v in ring]
+        bmesh.ops.transform(self.bm, matrix=self.matrix, verts=verts)
+        return self._finish(verts, mat)
+
+    def sheet(self, size, center, mat, rot=(0, 0, 0), lift=None, nx=8, ny=8):
+        """A thin sheet (paper, cloth) as a grid; lift(u, v) -> z bends it (curled corners)."""
+        w, d = size
+        grid = []
+        for j in range(ny + 1):
+            row = []
+            for i in range(nx + 1):
+                u, v = i / nx, j / ny
+                z = lift(u, v) if lift else 0.0
+                row.append(self.bm.verts.new(((u - 0.5) * w, (v - 0.5) * d, z)))
+            grid.append(row)
+        for j in range(ny):
+            for i in range(nx):
+                self.bm.faces.new((grid[j][i], grid[j][i + 1], grid[j + 1][i + 1], grid[j + 1][i]))
+        verts = [v for row in grid for v in row]
+        bmesh.ops.transform(self.bm, matrix=self.matrix @ self._local(center, rot), verts=verts)
+        return self._finish(verts, mat)
+
+    def ring(self, outer, width, y0, y1, mat, center=(0, 0), inner_slope=0.0, bevel=0.0):
+        """Rectangular frame of four mitred bars in the XZ plane, from y0 (front)
+        to y1 (back). width is one number or (sides, top/bottom); inner_slope
+        widens the front opening (a bevel-cut mount)."""
+        w, h = outer
+        cx, cz = center
+        wx, wz = width if isinstance(width, tuple) else (width, width)
+        out = [(-w / 2, -h / 2), (w / 2, -h / 2), (w / 2, h / 2), (-w / 2, h / 2)]
+        inn = [(x - math.copysign(wx, x), z - math.copysign(wz, z)) for x, z in out]
+        verts = set()
+        for i in range(4):
+            j = (i + 1) % 4
+            front_in = [(x + math.copysign(inner_slope, x), z + math.copysign(inner_slope, z))
+                        for x, z in (inn[i], inn[j])]
+            quad_f = [out[i], out[j], front_in[1], front_in[0]]
+            quad_b = [out[i], out[j], inn[j], inn[i]]
+            vf = [self.bm.verts.new((cx + x, y0, cz + z)) for x, z in quad_f]
+            vb = [self.bm.verts.new((cx + x, y1, cz + z)) for x, z in quad_b]
+            faces = [self.bm.faces.new(vf), self.bm.faces.new(list(reversed(vb)))]
+            for k in range(4):
+                kk = (k + 1) % 4
+                faces.append(self.bm.faces.new((vf[kk], vf[k], vb[k], vb[kk])))
+            bmesh.ops.recalc_face_normals(self.bm, faces=faces)
+            bmesh.ops.transform(self.bm, matrix=self.matrix, verts=vf + vb)
+            verts |= self._finish(vf + vb, mat, bevel, 2)
+        return verts
+
     def planar_uvs(self, verts, to_local, origin, size):
         """Project UVs onto the local XZ plane (for image-mapped faces)."""
         uv = self.bm.loops.layers.uv.verify()
@@ -318,6 +524,21 @@ class HeroBuilder:
         col.objects.link(obj)
         obj["hero"] = True
         return obj
+
+
+def smooth_path(points, steps=6):
+    """Catmull-Rom through the control points (for cables and cords)."""
+    pts = [Vector(p) for p in points]
+    pts = [pts[0]] + pts + [pts[-1]]
+    out = []
+    for i in range(1, len(pts) - 2):
+        p0, p1, p2, p3 = pts[i - 1], pts[i], pts[i + 1], pts[i + 2]
+        for s in range(steps):
+            t = s / steps
+            out.append(0.5 * ((2 * p1) + (-p0 + p2) * t + (2 * p0 - 5 * p1 + 4 * p2 - p3) * t * t
+                              + (-p0 + 3 * p1 - 3 * p2 + p3) * t ** 3))
+    out.append(pts[-2])
+    return [tuple(p) for p in out]
 
 
 def _fillet(points, radius, steps=8):
@@ -356,10 +577,11 @@ def display(col, name, loc, rot_z=0.0, width=0.66, height=0.46, lift=0.12, tilt_
            @ Matrix.Translation(-hinge))
     frame_d = 0.012
     b.box((width, frame_d, height), (0, 0, zc), m["aluminium"], bevel=0.0035, segments=3)
-    # edge-to-edge glass with a thin black border, and the lit image area
-    b.box((width - 0.008, 0.002, height - 0.008), (0, -frame_d / 2 - 0.0008, zc), m["screen"],
+    # glass inset in an aluminium rim, a thin black border, and the lit image area
+    rim = 0.016
+    b.box((width - 2 * rim, 0.002, height - 2 * rim), (0, -frame_d / 2 - 0.0008, zc), m["screen"],
           bevel=0.0008, segments=1)
-    border = 0.014
+    border = rim + 0.007
     image_verts = b.box((width - 2 * border, 0.0004, height - 2 * border),
                         (0, -frame_d / 2 - 0.0019, zc), m["screen_on"])
     b.planar_uvs(image_verts, b.matrix.inverted(), (-width / 2 + border, zc - height / 2 + border),
@@ -380,6 +602,7 @@ def display(col, name, loc, rot_z=0.0, width=0.66, height=0.46, lift=0.12, tilt_
     # hinge boss
     b.cyl(0.02, width * 0.24, (0, hinge.y - 0.008, hinge.z), m["aluminium"],
           rot=(0, math.pi / 2, 0), bevel=0.003)
+    _webcam(b, m, zc + height / 2, frame_d)
     b.pop()
 
     # --- the foot: one bent plate, hinge -> down and back -> forward along the desk
@@ -400,6 +623,20 @@ def display(col, name, loc, rot_z=0.0, width=0.66, height=0.46, lift=0.12, tilt_
     for y in (front_y + 0.02, back_y - 0.06):
         b.box((foot_w - 0.03, 0.02, 0.0015), (0, y, 0.00075), m["rubber"])
     return b.build(name, col, loc, rot_z)
+
+
+def _webcam(b, m, top, frame_d):
+    """Small cylindrical webcam clipped to the top edge, lens facing -Y."""
+    b.box((0.024, 0.056, 0.004), (0, 0.016, top + 0.002), m["aluminium"], bevel=0.0012, segments=2)
+    b.box((0.024, 0.004, 0.014), (0, -frame_d / 2 - 0.002, top - 0.005), m["aluminium"],
+          bevel=0.0012, segments=2)
+    b.cyl(0.0045, 0.014, (0, 0.004, top + 0.011), m["aluminium"], segments=20)
+    y0, length = -0.004, 0.072
+    b.cyl(0.0125, length, (0, y0, top + 0.03), m["aluminium"], rot=(math.pi / 2, 0, 0), bevel=0.002)
+    b.cyl(0.0108, 0.002, (0, y0 - length / 2 - 0.0005, top + 0.03), m["gloss_black"],
+          rot=(math.pi / 2, 0, 0))
+    b.cyl(0.005, 0.002, (0, y0 - length / 2 - 0.001, top + 0.03), m["lens_glass"],
+          rot=(math.pi / 2, 0, 0), segments=24)
 
 
 # --------------------------------------------------------------------------- camera
