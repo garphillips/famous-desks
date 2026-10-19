@@ -28,7 +28,7 @@
  *
  * Uses sharp (libvips) for resizing and WebP encoding; the reprojection is plain JS.
  */
-import { mkdir, rm, writeFile } from 'node:fs/promises';
+import { mkdir, rename, rm, writeFile } from 'node:fs/promises';
 import { dirname, join } from 'node:path';
 import { parseArgs } from 'node:util';
 import sharp from 'sharp';
@@ -98,7 +98,10 @@ async function bordered(face, size) {
 	return { data, width: size + 2 * BLEED };
 }
 
-await rm(opt.out, { recursive: true, force: true });
+// Written to a side folder and swapped in at the end, so a site being browsed meanwhile
+// keeps serving the old panorama whole instead of a half-deleted one.
+const work = `${opt.out}.partial`;
+await rm(work, { recursive: true, force: true });
 let files = 0;
 let bytes = 0;
 const write = async (path, pipeline) => {
@@ -109,7 +112,7 @@ const write = async (path, pipeline) => {
 };
 
 for (const level of levels) {
-	const dir = join(opt.out, String(level));
+	const dir = join(work, String(level));
 	await mkdir(dir, { recursive: true });
 	const n = Math.ceil(level / tileSize);
 	for (const f of FACES) {
@@ -139,14 +142,16 @@ for (const [i, f] of FACES.entries()) {
 	composite.push({ input: src.data, raw: { width: cell, height: cell, channels: 3 }, left: i * cell, top: 0 });
 }
 await write(
-	join(opt.out, 'preview.webp'),
+	join(work, 'preview.webp'),
 	sharp({ create: { width: cell * 6, height: cell, channels: 3, background: '#000' } })
 		.composite(composite)
 		.webp({ quality: 80, effort: 4 })
 );
 
 const meta = { faceSize, tileSize, levels, bleed: BLEED, format: 'webp', previewSize };
-await writeFile(join(opt.out, 'tiles.json'), JSON.stringify(meta, null, 2));
+await writeFile(join(work, 'tiles.json'), JSON.stringify(meta, null, 2));
+await rm(opt.out, { recursive: true, force: true });
+await rename(work, opt.out);
 
 if (opt.equirect) {
 	const W = +opt['equirect-width'];
@@ -194,7 +199,9 @@ if (opt.equirect) {
 		}
 	}
 	await mkdir(dirname(opt.equirect), { recursive: true });
-	await sharp(out, { raw: { width: W, height: H, channels: 3 } }).webp({ quality, effort: 4 }).toFile(opt.equirect);
+	const part = `${opt.equirect}.partial.webp`;
+	await sharp(out, { raw: { width: W, height: H, channels: 3 } }).webp({ quality, effort: 4 }).toFile(part);
+	await rename(part, opt.equirect);
 }
 
 console.log(

@@ -12,14 +12,18 @@ import { ROOM_TO_VIEWER, prefersReducedMotion, toViewerSpace, type Overlay, type
  * relative to the viewpoint, so it lines up with the rendered book in the panorama.
  *
  * Flying out: the 3D book fades in exactly over the panorama's book while a patch of the
- * panorama rendered without it fades in behind (the empty slot), slides forward out of the
- * shelf, then turns its cover to the camera and settles beside the info panel. Returning
- * plays the same timeline backwards, so both ends match exactly.
+ * panorama rendered without it fades in behind (the empty slot), then follows one smooth
+ * curve: straight out of the shelf, arcing round to turn its cover to the camera and settle
+ * beside the info panel, without stopping on the way. Returning plays the same timeline
+ * backwards, so both ends match exactly.
+ *
+ * Every book's meshes, textures and shaders are made and uploaded when the shelf opens,
+ * so picking one never stalls a frame.
  */
 
-const FLY_MS = 1150;
-const SLIDE_END = 0.3;
-const FADE_END = 0.12;
+const FLY_MS = 1300;
+/** Share of the timeline (raw time) over which the book fades in over its panorama copy. */
+const FADE_END = 0.1;
 /** Turn of the book at rest, so the spine shows next to the cover. */
 const REST_TURN = THREE.MathUtils.degToRad(38);
 const REST_TILT = THREE.MathUtils.degToRad(4);
@@ -30,8 +34,8 @@ const PATCH_FEATHER_PX = 16;
 const DIM = 0.5;
 
 const smootherstep = (t: number) => t * t * t * (t * (t * 6 - 15) + 10);
-const easeOut = (t: number) => 1 - (1 - t) ** 3;
 const clamp01 = (t: number) => Math.min(1, Math.max(0, t));
+const ramp = (a: number, b: number, t: number) => smootherstep(clamp01((t - a) / (b - a)));
 
 /** Where the info panel sits: on the right (desktop) or a sheet at the bottom (phone), and the share of the screen it covers. */
 export interface Panel {
@@ -53,13 +57,16 @@ interface Book {
 	box: THREE.Box3;
 }
 
-interface Flight {
-	book: Book;
+/** A book's 3D copy and its empty-slot patches, made up front and hidden until it flies. */
+interface Prepared {
 	group: THREE.Group;
 	materials: THREE.Material[];
 	patches: THREE.Mesh<THREE.BufferGeometry, THREE.ShaderMaterial>[];
-	/** Darkens the room behind the book while it is out. */
-	dim: THREE.Mesh<THREE.SphereGeometry, THREE.MeshBasicMaterial>;
+}
+
+interface Flight {
+	book: Book;
+	prepared: Prepared;
 	rest: Pose;
 	/** 0 on the shelf, 1 at rest by the panel. */
 	t: number;
@@ -131,9 +138,13 @@ export class ShelfItems implements Overlay {
 	scenes = [this.backdrop, this.scene];
 	private environment: THREE.Texture;
 	private books: Book[];
-	private loader = new THREE.TextureLoader();
+	private loader: THREE.TextureLoader;
 	private flight: Flight | null = null;
 	private key: THREE.DirectionalLight;
+	private prepared = new Map<string, Prepared>();
+	private textures: THREE.Texture[] = [];
+	/** Darkens the room behind the book while it is out. */
+	private dim: THREE.Mesh<THREE.SphereGeometry, THREE.MeshBasicMaterial>;
 
 	constructor(
 		private viewer: PanoViewer,
@@ -165,6 +176,46 @@ export class ShelfItems implements Overlay {
 		this.scene.add(new THREE.HemisphereLight(0xfff6ea, 0x40382c, 0.7));
 		this.key = new THREE.DirectionalLight(0xfff1de, 1.9);
 		this.scene.add(this.key, this.key.target);
+
+		// between the panorama (and patches, further out) and the book
+		this.dim = new THREE.Mesh(
+			new THREE.SphereGeometry(3, 16, 8),
+			new THREE.MeshBasicMaterial({ color: 0x000000, transparent: true, opacity: 0, side: THREE.BackSide, depthTest: false, depthWrite: false })
+		);
+		this.dim.renderOrder = 0.5;
+		this.dim.frustumCulled = false;
+		this.dim.visible = false;
+		this.backdrop.add(this.dim);
+
+		// everything up front; once the textures are in, upload them and compile the shaders
+		const manager = new THREE.LoadingManager(() => this.warm());
+		this.loader = new THREE.TextureLoader(manager);
+		for (const book of this.books) {
+			const prepared = { ...this.build(book.item), patches: this.patchMeshes(book.item.patches) };
+			prepared.group.visible = false;
+			for (const p of prepared.patches) {
+				p.visible = false;
+				this.backdrop.add(p);
+			}
+			this.scene.add(prepared.group);
+			this.prepared.set(book.item.slug, prepared);
+		}
+	}
+
+	/** Uploads every texture and compiles every shader now, not on the first frame they're needed. */
+	private warm() {
+		const gl = this.viewer.gl;
+		for (const t of this.textures) gl.initTexture(t);
+		const hidden: THREE.Object3D[] = [];
+		for (const scene of this.scenes)
+			scene.traverse((o) => {
+				if (!o.visible) {
+					o.visible = true;
+					hidden.push(o);
+				}
+			});
+		for (const scene of this.scenes) gl.compile(scene, this.viewer.view);
+		for (const o of hidden) o.visible = false;
 	}
 
 	/** The book whose shelf box the ray from the viewpoint along `dir` hits first. */
@@ -207,24 +258,13 @@ export class ShelfItems implements Overlay {
 		const book = this.books.find((b) => b.item.slug === slug);
 		if (!book) return Promise.resolve();
 		if (this.flight) this.land();
-		const { group, materials } = this.build(book.item);
-		const patches = this.patchMeshes(book.item.patches);
-		// between the panorama (and patches, further out) and the book
-		const dim = new THREE.Mesh(
-			new THREE.SphereGeometry(3, 16, 8),
-			new THREE.MeshBasicMaterial({ color: 0x000000, transparent: true, opacity: 0, side: THREE.BackSide, depthTest: false, depthWrite: false })
-		);
-		dim.renderOrder = 0.5;
-		dim.frustumCulled = false;
-		this.scene.add(group);
-		this.backdrop.add(dim);
-		for (const p of patches) this.backdrop.add(p);
+		const prepared = this.prepared.get(slug)!;
+		prepared.group.visible = true;
+		for (const p of prepared.patches) p.visible = true;
+		this.dim.visible = true;
 		this.flight = {
 			book,
-			group,
-			materials,
-			patches,
-			dim,
+			prepared,
 			rest: this.restPose(book.item, panel),
 			t: 0,
 			from: 0,
@@ -266,14 +306,26 @@ export class ShelfItems implements Overlay {
 				done?.();
 			}
 		}
-		this.pose(f, now);
-		// at rest the book breathes a little, so keep drawing
-		return animating || f.t === 1;
+		this.pose(f);
+		return animating;
 	}
 
 	dispose() {
 		this.land();
 		this.environment.dispose();
+		for (const { group, materials, patches } of this.prepared.values()) {
+			group.traverse((o) => {
+				if (o instanceof THREE.Mesh) o.geometry.dispose();
+			});
+			for (const m of materials) m.dispose();
+			for (const p of patches) {
+				p.geometry.dispose();
+				p.material.dispose();
+			}
+		}
+		for (const t of this.textures) t.dispose();
+		this.dim.geometry.dispose();
+		this.dim.material.dispose();
 	}
 
 	private run(to: number) {
@@ -289,65 +341,46 @@ export class ShelfItems implements Overlay {
 	private land() {
 		const f = this.flight;
 		if (!f) return;
-		this.scene.remove(f.group);
-		f.group.traverse((o) => {
-			if (o instanceof THREE.Mesh) o.geometry.dispose();
-		});
-		for (const m of f.materials) m.dispose();
-		this.backdrop.remove(f.dim);
-		f.dim.geometry.dispose();
-		f.dim.material.dispose();
-		for (const p of f.patches) {
-			this.backdrop.remove(p);
-			p.geometry.dispose();
-			p.material.uniforms.map.value?.dispose();
-			p.material.dispose();
-		}
+		f.prepared.group.visible = false;
+		for (const p of f.prepared.patches) p.visible = false;
+		this.dim.visible = false;
 		f.done?.();
 		this.flight = null;
 		this.viewer.requestFrame();
 	}
 
-	private pose(f: Flight, now: number) {
+	/**
+	 * One continuous move: a cubic Bezier from the slot, pulled straight out of the shelf
+	 * first (the first control point lies along the spine's outward direction), to the rest
+	 * pose, approached from a little above; the turn to the camera starts once it is clear.
+	 */
+	private pose(f: Flight) {
 		const { home } = f.book;
 		const { rest } = f;
+		const { group, materials, patches } = f.prepared;
 		const [, h, d] = f.book.item.size;
 		const t = f.t;
+		const e = smootherstep(t);
 		const out = new THREE.Vector3(0, -1, 0).applyQuaternion(home.quaternion);
-		const slid = home.position.clone().addScaledVector(out, d * 0.8);
-		const position = new THREE.Vector3();
-		const quaternion = new THREE.Quaternion();
-		if (t <= SLIDE_END) {
-			position.lerpVectors(home.position, slid, easeOut(t / SLIDE_END));
-			quaternion.copy(home.quaternion);
-		} else {
-			const e = smootherstep((t - SLIDE_END) / (1 - SLIDE_END));
-			position.lerpVectors(slid, rest.position, e);
-			// a little lift on the way, so it arcs rather than slides
-			position.y += Math.sin(Math.PI * e) * h * 0.25;
-			quaternion.slerpQuaternions(home.quaternion, rest.quaternion, e);
-		}
-		if (t === 1 && !prefersReducedMotion()) {
-			const s = now / 1000;
-			position.y += Math.sin(s * 1.3) * 0.002;
-			quaternion.multiply(new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 0, 1), Math.sin(s * 0.7) * 0.03));
-		}
-		f.group.position.copy(position);
-		f.group.quaternion.copy(quaternion);
+		const c1 = home.position.clone().addScaledVector(out, d * 1.6);
+		const up = new THREE.Vector3().setFromMatrixColumn(this.viewer.view.matrixWorld, 1);
+		const c2 = rest.position.clone().addScaledVector(up, h * 0.35);
+		const u = 1 - e;
+		group.position
+			.copy(home.position)
+			.multiplyScalar(u * u * u)
+			.addScaledVector(c1, 3 * u * u * e)
+			.addScaledVector(c2, 3 * u * e * e)
+			.addScaledVector(rest.position, e * e * e);
+		group.quaternion.slerpQuaternions(home.quaternion, rest.quaternion, ramp(0.12, 0.92, e));
 		const cam = this.viewer.view;
-		this.key.position.copy(position).add(
-			new THREE.Vector3(-0.6, 0.9, 0.8).applyQuaternion(cam.quaternion)
-		);
-		this.key.target.position.copy(position);
+		this.key.position.copy(group.position).add(new THREE.Vector3(-0.6, 0.9, 0.8).applyQuaternion(cam.quaternion));
+		this.key.target.position.copy(group.position);
 		this.key.target.updateMatrixWorld();
 		const fade = clamp01(t / FADE_END);
-		for (const m of f.materials) {
-			m.opacity = fade;
-			m.transparent = fade < 1;
-			m.depthWrite = fade >= 1;
-		}
-		for (const p of f.patches) p.material.uniforms.opacity.value = fade;
-		f.dim.material.opacity = DIM * smootherstep(clamp01((t - SLIDE_END) / (1 - SLIDE_END)));
+		for (const m of materials) m.opacity = fade;
+		for (const p of patches) p.material.uniforms.opacity.value = fade;
+		this.dim.material.opacity = DIM * ramp(0.1, 0.9, e);
 	}
 
 	/** Beside the panel, cover to the camera, turned a little to show the spine. */
@@ -388,6 +421,7 @@ export class ShelfItems implements Overlay {
 		const t = this.loader.load(this.url(path), () => this.viewer.requestFrame());
 		t.colorSpace = THREE.SRGBColorSpace;
 		t.anisotropy = 8;
+		this.textures.push(t);
 		return t;
 	}
 
@@ -397,6 +431,7 @@ export class ShelfItems implements Overlay {
 		// pages sit a touch inside the covers on a hardback
 		const inset = item.kind === 'hardback' ? 0.0025 : 0.0006;
 		const board = item.kind === 'hardback' ? 0.0024 : 0.0008;
+		// always transparent (only the opacity changes), so fading never swaps render lists
 		const common = { roughness: 0.55, metalness: 0, transparent: true, opacity: 0 };
 		// covers double-sided: their backs are the insides of the boards, beside the page block
 		const cover = new THREE.MeshStandardMaterial({ ...common, map: this.texture(item.cover), roughness: 0.42, side: THREE.DoubleSide });
@@ -406,7 +441,9 @@ export class ShelfItems implements Overlay {
 			color: new THREE.Color(item.coverColour).multiplyScalar(0.85),
 			side: THREE.DoubleSide
 		});
-		const edgeU = new THREE.MeshStandardMaterial({ ...common, map: pageEdgeTexture(), roughness: 0.85 });
+		const edges = pageEdgeTexture();
+		this.textures.push(edges);
+		const edgeU = new THREE.MeshStandardMaterial({ ...common, map: edges, roughness: 0.85 });
 		const boardEdge = new THREE.MeshStandardMaterial({ ...common, color: new THREE.Color(item.spineColour) });
 		const group = new THREE.Group();
 		const add = (g: THREE.BufferGeometry, m: THREE.Material) => group.add(new THREE.Mesh(g, m));

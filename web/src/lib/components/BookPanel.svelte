@@ -76,7 +76,8 @@
 		border: 1px solid rgba(244, 241, 234, 0.08);
 		box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
 		overflow: auto;
-		animation: slide 420ms 280ms cubic-bezier(0.2, 0.8, 0.2, 1) both;
+		/* arrives as the book settles beside it */
+		animation: slide 420ms 850ms cubic-bezier(0.2, 0.8, 0.2, 1) both;
 	}
 	@keyframes fade {
 		from {

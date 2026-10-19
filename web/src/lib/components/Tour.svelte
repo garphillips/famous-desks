@@ -59,6 +59,8 @@
 		if (!viewer) return;
 		yaw = viewer.yaw;
 		hfov = viewer.hfov;
+		// while a book is out the page above the canvas stays still, so frames stay cheap
+		if (openItem) return;
 		markers = here.map((hotspot) => {
 			const { yaw, pitch } = hotspot.views[viewpoint.slug];
 			return { hotspot, ...viewer!.project(yaw, pitch) };
@@ -183,7 +185,11 @@
 	}
 
 	function goToViewpoint(slug: string) {
-		if (slug === viewpoint.slug) return;
+		if (slug === viewpoint.slug) {
+			// already here, zoomed in on a shelf: back to the plain view
+			if (focus) leaveFocus();
+			return;
+		}
 		goto(`/${space.slug}/${slug}`, { replaceState: true, noScroll: true, keepFocus: true });
 	}
 
@@ -300,7 +306,7 @@
 
 	{#if focus}
 		<!-- A soft light breathing on each spine (screen-blended, so it brightens like light). -->
-		<svg class="outlines" class:dim={!!openItem} aria-hidden="true">
+		<svg class="outlines" class:hidden={!!openItem} aria-hidden="true">
 			<defs>
 				<filter id="spine-glow" x="-100%" y="-50%" width="300%" height="200%">
 					<feGaussianBlur stdDeviation="9" />
@@ -440,8 +446,8 @@
 		pointer-events: none;
 		transition: opacity 300ms ease;
 	}
-	.outlines.dim {
-		opacity: 0;
+	.outlines.hidden {
+		display: none;
 	}
 	.outlines {
 		mix-blend-mode: screen;
