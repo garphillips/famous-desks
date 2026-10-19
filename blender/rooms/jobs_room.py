@@ -20,7 +20,7 @@ import random
 
 import bpy
 
-from lib import architecture, furniture as f, materials, tour
+from lib import architecture, furniture as f, hero, materials, tour
 from lib.geo import collection
 
 W, D = 6.4, 4.3
@@ -108,7 +108,7 @@ def build():
     wall = D / 2
     desk_y = wall - desk_len / 2
     f.table(m, furn, "desk", (DESK_X, desk_y, 0), (desk_w, desk_len, 0.74), top="oak", frame="oak")
-    f.monitor(m, props, "display", (DESK_X - 0.05, wall - 0.3, 0.74), rot_z=-0.35, width=0.66, height=0.46)
+    hero.display(props, "display", (DESK_X - 0.05, wall - 0.3, 0.74), rot_z=-0.35, width=0.66, height=0.46)
     f.black_box(m, props, "speaker", (DESK_X + 0.28, wall - 0.3, 0.74), (0.18, 0.2, 0.26))
     f.black_box(m, props, "keyboard", (DESK_X - 0.25, wall - 0.5, 0.74), (0.42, 0.15, 0.03), rot_z=math.pi / 2 + 0.3)
     f.tower(m, props, "mac_pro", (DESK_X - 0.2, wall - 0.45, 0), rot_z=math.pi / 2)
@@ -128,13 +128,13 @@ def build():
 
     # Floor clutter: south of the desk (south photo foreground)
     cx, cy = to_m(876, 753)
-    f.tripod(m, props, "tripod", (cx + 0.15, cy + 0.1, 0))
+    hero.tripod(props, "tripod", (cx + 0.15, cy + 0.1, 0))
     f.cardboard_box(m, props, "box_1", (cx + 0.45, cy - 0.1, 0), (0.6, 0.45, 0.45), rot_z=0.1)
     f.black_box(m, props, "case_stack", (cx + 0.55, cy + 0.35, 0), (0.4, 0.3, 0.55))
     f.black_box(m, props, "floor_pile", (cx - 0.3, cy - 0.25, 0), (0.7, 0.45, 0.22), rot_z=0.2)
     f.bin_basket(m, props, "bin", (cx - 0.35, cy + 0.4, 0))
     f.flight_case(m, props, "camera_case", (cx - 0.1, cy - 0.45, 0), rot_z=-0.2)
-    f.camera_body(m, props, "camera", (cx - 0.1, cy - 0.45, 0.3), rot_z=0.3)
+    hero.camera(props, "camera", (cx - 0.1, cy - 0.45, 0.3), rot_z=0.3)
 
     # Floor clutter: between the desk and the north-east window
     nx, ny = to_m(1480, 273)
@@ -156,13 +156,32 @@ def build():
 
     tour.hotspot("bookshelf", "Bookshelf", (-W / 2 + 0.2, BOOKSHELF[0], 1.65), icon="info",
                  summary="Explore the collection of books, cameras and creative tools.")
-    tour.hotspot("display", "The display", (DESK_X - 0.05, wall - 0.3, 1.3))
+    tour.hotspot("display", "The display", (DESK_X - 0.05, wall - 0.3, 1.3), model="display")
     tour.hotspot("print", "The print", (DESK_X, wall - 0.05, 2.25), icon="info")
-    tour.hotspot("camera", "Camera", (cx - 0.1, cy - 0.45, 0.55))
-    tour.hotspot("tripod", "Tripod", (cx + 0.15, cy + 0.1, 1.6))
+    tour.hotspot("camera", "Camera", (cx - 0.1, cy - 0.45, 0.55), model="camera")
+    tour.hotspot("tripod", "Tripod", (cx + 0.15, cy + 0.1, 1.6), model="tripod")
     tour.hotspot("east_window", "Garden window", (W / 2 - 0.1, E_WINDOW[0], 1.85))
     tour.hotspot("floor_lamp", "Floor lamp", (lx, ly, 1.75))
     tour.hotspot("entrance", "Entrance", (DOOR[0], -D / 2 + 0.05, 1.4), kind="door", icon="door", target="")
+
+    # Close-ups for the detail panels (details/<hotspot>/closeup-<n>.webp)
+    disp = (DESK_X - 0.05, wall - 0.3, 0.74)
+    tour.detail_camera("display", (disp[0] - 0.62, disp[1] - 0.95, 1.22), (disp[0], disp[1], 1.04),
+                       lens=35, fstop=5.6)
+    tour.detail_camera("display", (disp[0] - 0.8, disp[1] + 0.2, 1.08), (disp[0] - 0.02, disp[1] + 0.07, 0.94),
+                       lens=32, fstop=5.6)
+    cam_loc = (cx - 0.1, cy - 0.45, 0.3)
+    tour.detail_camera("camera", (cam_loc[0] + 0.38, cam_loc[1] - 0.24, 0.52),
+                       (cam_loc[0] + 0.01, cam_loc[1] - 0.03, 0.355), lens=50, fstop=2.8, exposure=2.6)
+    tour.detail_camera("camera", (cam_loc[0] - 0.38, cam_loc[1] + 0.24, 0.56),
+                       (cam_loc[0], cam_loc[1], 0.35), lens=50, fstop=2.8, exposure=2.6)
+    pod = (cx + 0.15, cy + 0.1, 0)
+    tour.detail_camera("tripod", (pod[0] + 0.45, pod[1] - 0.55, 1.55), (pod[0], pod[1], 1.3),
+                       lens=50, fstop=2.8, exposure=2.2)
+    tour.detail_camera("tripod", (pod[0] + 1.0, pod[1] - 1.5, 0.85), (pod[0], pod[1], 0.68),
+                       lens=35, exposure=2.0)
+    tour.detail_camera("bookshelf", (-1.5, 0.75, 1.45), (-W / 2, 0.35, 1.25), lens=30)
+    tour.detail_camera("print", (DESK_X + 0.05, 0.85, 1.85), (DESK_X, wall, 1.85), lens=50)
 
     # Matches "Upscaled facing south.png" (looks north at the desk) and
     # "upscaled facing north.png" (looks west at the bookshelf)

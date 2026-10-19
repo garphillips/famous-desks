@@ -21,6 +21,14 @@ export interface HotspotView {
 	distance: number;
 }
 
+/** Extra media for a hotspot's detail panel. Paths are relative to the space folder. */
+export interface HotspotDetail {
+	/** Close-up renders (details/<hotspot>/closeup-<n>.webp), in display order. */
+	images: string[];
+	/** glTF binary of the object (details/<hotspot>/model.glb): metres, Y-up, centred, resting on y=0. */
+	model?: string;
+}
+
 export interface Hotspot {
 	slug: string;
 	title: string;
@@ -32,6 +40,8 @@ export interface Hotspot {
 	views: Record<string, HotspotView>;
 	/** For doors: the space slug they lead to ('' = not connected yet). */
 	target?: string;
+	/** Close-ups and 3D model, when the space has them. */
+	detail?: HotspotDetail;
 }
 
 export interface FloorPlan {
