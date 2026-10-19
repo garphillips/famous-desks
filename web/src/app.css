@@ -1,0 +1,57 @@
+@import '@fontsource/cormorant-garamond/500.css';
+@import '@fontsource-variable/inter';
+
+:root {
+	color-scheme: dark;
+	--ink: #f4f1ea;
+	--ink-soft: rgba(244, 241, 234, 0.72);
+	--ink-faint: rgba(244, 241, 234, 0.45);
+	--panel: rgba(16, 16, 15, 0.74);
+	--panel-solid: #161615;
+	--line: rgba(244, 241, 234, 0.22);
+	--accent: #d8b46e;
+	--bg: #0e0e0d;
+	--radius: 14px;
+	--serif: 'Cormorant Garamond', Georgia, serif;
+	--sans: 'Inter Variable', system-ui, sans-serif;
+	--blur: blur(14px) saturate(1.2);
+}
+
+*,
+*::before,
+*::after {
+	box-sizing: border-box;
+}
+
+html,
+body {
+	margin: 0;
+	height: 100%;
+	background: var(--bg);
+	color: var(--ink);
+	font-family: var(--sans);
+	-webkit-font-smoothing: antialiased;
+}
+
+button {
+	font: inherit;
+	color: inherit;
+}
+
+a {
+	color: inherit;
+}
+
+:focus-visible {
+	outline: 2px solid var(--accent);
+	outline-offset: 2px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+	*,
+	*::before,
+	*::after {
+		transition-duration: 0.01ms !important;
+		animation-duration: 0.01ms !important;
+	}
+}

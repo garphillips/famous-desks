@@ -1,0 +1,14 @@
+# Private reference images: never published
+starter/
+
+# Blender outputs (rebuilt from scripts)
+blender/build/
+*.blend1
+
+# Web
+node_modules/
+web/.svelte-kit/
+web/build/
+
+.DS_Store
+__pycache__/

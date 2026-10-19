@@ -1,0 +1,796 @@
+{
+  "slug": "jobs-room",
+  "title": "The Jobs Room",
+  "plan": {
+    "image": "plan.webp",
+    "center": [
+      0,
+      0
+    ],
+    "size": 7.6
+  },
+  "floorPlan": {
+    "width": 6.4,
+    "depth": 4.3,
+    "wallThickness": 0.42,
+    "openings": [
+      {
+        "wall": "N",
+        "kind": "window",
+        "center": -1.664,
+        "width": 1.418
+      },
+      {
+        "wall": "N",
+        "kind": "window",
+        "center": 2.07,
+        "width": 1.418
+      },
+      {
+        "wall": "E",
+        "kind": "window",
+        "center": 1.036,
+        "width": 1.426
+      },
+      {
+        "wall": "S",
+        "kind": "door",
+        "center": -1.18,
+        "width": 1.418
+      }
+    ],
+    "items": [
+      {
+        "name": "bookshelf",
+        "points": [
+          [
+            -2.86,
+            -1.344
+          ],
+          [
+            -3.2,
+            -1.344
+          ],
+          [
+            -3.2,
+            2.15
+          ],
+          [
+            -2.86,
+            2.15
+          ]
+        ]
+      },
+      {
+        "name": "desk",
+        "points": [
+          [
+            -0.475,
+            0.35
+          ],
+          [
+            -0.475,
+            2.15
+          ],
+          [
+            0.425,
+            2.15
+          ],
+          [
+            0.425,
+            0.35
+          ]
+        ]
+      },
+      {
+        "name": "chair",
+        "points": [
+          [
+            -0.964,
+            1.037
+          ],
+          [
+            -1.27,
+            1.598
+          ],
+          [
+            -0.734,
+            1.891
+          ],
+          [
+            -0.428,
+            1.33
+          ]
+        ]
+      },
+      {
+        "name": "floor_lamp",
+        "points": [
+          [
+            1.278,
+            -0.566
+          ],
+          [
+            1.278,
+            -0.186
+          ],
+          [
+            1.658,
+            -0.186
+          ],
+          [
+            1.658,
+            -0.566
+          ]
+        ]
+      },
+      {
+        "name": "mac_pro",
+        "points": [
+          [
+            0.014,
+            1.595
+          ],
+          [
+            -0.46,
+            1.595
+          ],
+          [
+            -0.46,
+            1.805
+          ],
+          [
+            0.014,
+            1.805
+          ]
+        ]
+      },
+      {
+        "name": "shelf_pile_0",
+        "points": [
+          [
+            -2.528,
+            1.319
+          ],
+          [
+            -2.452,
+            1.772
+          ],
+          [
+            -1.966,
+            1.691
+          ],
+          [
+            -2.042,
+            1.238
+          ]
+        ]
+      },
+      {
+        "name": "shelf_pile_1",
+        "points": [
+          [
+            -2.512,
+            0.513
+          ],
+          [
+            -2.517,
+            1.058
+          ],
+          [
+            -2.016,
+            1.064
+          ],
+          [
+            -2.01,
+            0.518
+          ]
+        ]
+      },
+      {
+        "name": "shelf_pile_2",
+        "points": [
+          [
+            -2.516,
+            -0.106
+          ],
+          [
+            -2.407,
+            0.481
+          ],
+          [
+            -1.933,
+            0.393
+          ],
+          [
+            -2.042,
+            -0.194
+          ]
+        ]
+      },
+      {
+        "name": "shelf_pile_3",
+        "points": [
+          [
+            -2.343,
+            -0.855
+          ],
+          [
+            -2.46,
+            -0.437
+          ],
+          [
+            -1.941,
+            -0.292
+          ],
+          [
+            -1.824,
+            -0.71
+          ]
+        ]
+      },
+      {
+        "name": "shelf_pile_4",
+        "points": [
+          [
+            -2.408,
+            -1.167
+          ],
+          [
+            -2.404,
+            -0.836
+          ],
+          [
+            -2.084,
+            -0.84
+          ],
+          [
+            -2.088,
+            -1.17
+          ]
+        ]
+      },
+      {
+        "name": "tripod",
+        "points": [
+          [
+            -0.132,
+            -0.791
+          ],
+          [
+            -0.132,
+            -0.106
+          ],
+          [
+            0.465,
+            -0.106
+          ],
+          [
+            0.465,
+            -0.791
+          ]
+        ]
+      },
+      {
+        "name": "box_1",
+        "points": [
+          [
+            0.107,
+            -1.012
+          ],
+          [
+            0.051,
+            -0.454
+          ],
+          [
+            0.648,
+            -0.394
+          ],
+          [
+            0.704,
+            -0.952
+          ]
+        ]
+      },
+      {
+        "name": "case_stack",
+        "points": [
+          [
+            0.272,
+            -0.348
+          ],
+          [
+            0.272,
+            -0.048
+          ],
+          [
+            0.672,
+            -0.048
+          ],
+          [
+            0.672,
+            -0.348
+          ]
+        ]
+      },
+      {
+        "name": "floor_pile",
+        "points": [
+          [
+            -0.677,
+            -1.088
+          ],
+          [
+            -0.766,
+            -0.647
+          ],
+          [
+            -0.08,
+            -0.508
+          ],
+          [
+            0.009,
+            -0.949
+          ]
+        ]
+      },
+      {
+        "name": "bin",
+        "points": [
+          [
+            -0.628,
+            -0.348
+          ],
+          [
+            -0.628,
+            0.052
+          ],
+          [
+            -0.228,
+            0.052
+          ],
+          [
+            -0.228,
+            -0.348
+          ]
+        ]
+      },
+      {
+        "name": "camera_case",
+        "points": [
+          [
+            -0.453,
+            -1.121
+          ],
+          [
+            -0.388,
+            -0.798
+          ],
+          [
+            0.093,
+            -0.895
+          ],
+          [
+            0.027,
+            -1.218
+          ]
+        ]
+      },
+      {
+        "name": "spare_display",
+        "points": [
+          [
+            2.012,
+            1.146
+          ],
+          [
+            1.934,
+            1.33
+          ],
+          [
+            2.505,
+            1.571
+          ],
+          [
+            2.583,
+            1.387
+          ]
+        ]
+      },
+      {
+        "name": "white_drum",
+        "points": [
+          [
+            1.524,
+            1.272
+          ],
+          [
+            1.524,
+            1.672
+          ],
+          [
+            1.924,
+            1.672
+          ],
+          [
+            1.924,
+            1.272
+          ]
+        ]
+      },
+      {
+        "name": "ne_pile",
+        "points": [
+          [
+            1.732,
+            0.633
+          ],
+          [
+            1.672,
+            1.028
+          ],
+          [
+            2.216,
+            1.111
+          ],
+          [
+            2.276,
+            0.715
+          ]
+        ]
+      }
+    ]
+  },
+  "viewpoints": [
+    {
+      "slug": "office",
+      "title": "Office",
+      "position": [
+        0.35,
+        -1.65,
+        1.6
+      ],
+      "pano": "panos/office.webp",
+      "initialYaw": -5.64
+    },
+    {
+      "slug": "bookshelf",
+      "title": "Bookshelf",
+      "position": [
+        -1.25,
+        0.3,
+        1.6
+      ],
+      "pano": "panos/bookshelf.webp",
+      "initialYaw": -90.0
+    },
+    {
+      "slug": "desk",
+      "title": "Desk",
+      "position": [
+        0.95,
+        0.55,
+        1.6
+      ],
+      "pano": "panos/desk.webp",
+      "initialYaw": -31.36
+    },
+    {
+      "slug": "window",
+      "title": "Window",
+      "position": [
+        2.15,
+        -1.05,
+        1.6
+      ],
+      "pano": "panos/window.webp",
+      "initialYaw": 26.72
+    },
+    {
+      "slug": "entrance",
+      "title": "Entrance",
+      "position": [
+        -1.18,
+        -1.55,
+        1.6
+      ],
+      "pano": "panos/entrance.webp",
+      "initialYaw": 17.33
+    }
+  ],
+  "hotspots": [
+    {
+      "slug": "bookshelf",
+      "title": "Bookshelf",
+      "kind": "hotspot",
+      "icon": "info",
+      "summary": "Explore the collection of books, cameras and creative tools.",
+      "position": [
+        -3.0,
+        0.403,
+        1.65
+      ],
+      "views": {
+        "office": {
+          "yaw": -58.5,
+          "pitch": 0.73,
+          "distance": 3.929
+        },
+        "bookshelf": {
+          "yaw": -86.63,
+          "pitch": 1.63,
+          "distance": 1.754
+        },
+        "desk": {
+          "yaw": -92.13,
+          "pitch": 0.72,
+          "distance": 3.953
+        },
+        "window": {
+          "yaw": -74.24,
+          "pitch": 0.54,
+          "distance": 5.351
+        },
+        "entrance": {
+          "yaw": -42.99,
+          "pitch": 1.07,
+          "distance": 2.67
+        }
+      }
+    },
+    {
+      "slug": "display",
+      "title": "The display",
+      "kind": "hotspot",
+      "icon": "eye",
+      "summary": "",
+      "position": [
+        -0.075,
+        1.85,
+        1.3
+      ],
+      "views": {
+        "office": {
+          "yaw": -6.92,
+          "pitch": -4.86,
+          "distance": 3.538
+        },
+        "bookshelf": {
+          "yaw": 37.17,
+          "pitch": -8.77,
+          "distance": 1.968
+        },
+        "desk": {
+          "yaw": -38.25,
+          "pitch": -10.27,
+          "distance": 1.682
+        },
+        "entrance": {
+          "yaw": 18.0,
+          "pitch": -4.8,
+          "distance": 3.587
+        }
+      }
+    },
+    {
+      "slug": "print",
+      "title": "The print",
+      "kind": "hotspot",
+      "icon": "info",
+      "summary": "",
+      "position": [
+        -0.025,
+        2.1,
+        2.25
+      ],
+      "views": {
+        "office": {
+          "yaw": -5.71,
+          "pitch": 9.79,
+          "distance": 3.824
+        },
+        "bookshelf": {
+          "yaw": 34.24,
+          "pitch": 16.62,
+          "distance": 2.272
+        },
+        "desk": {
+          "yaw": -32.17,
+          "pitch": 19.54,
+          "distance": 1.943
+        },
+        "entrance": {
+          "yaw": 17.55,
+          "pitch": 9.64,
+          "distance": 3.883
+        }
+      }
+    },
+    {
+      "slug": "camera",
+      "title": "Camera",
+      "kind": "hotspot",
+      "icon": "eye",
+      "summary": "",
+      "position": [
+        -0.178,
+        -0.998,
+        0.55
+      ],
+      "views": {
+        "office": {
+          "yaw": -39.03,
+          "pitch": -51.37,
+          "distance": 1.344
+        },
+        "bookshelf": {
+          "yaw": 140.46,
+          "pitch": -31.95,
+          "distance": 1.984
+        },
+        "window": {
+          "yaw": -88.73,
+          "pitch": -24.27,
+          "distance": 2.555
+        },
+        "entrance": {
+          "yaw": 61.14,
+          "pitch": -42.57,
+          "distance": 1.552
+        }
+      }
+    },
+    {
+      "slug": "tripod",
+      "title": "Tripod",
+      "kind": "hotspot",
+      "icon": "eye",
+      "summary": "",
+      "position": [
+        0.072,
+        -0.448,
+        1.6
+      ],
+      "views": {
+        "office": {
+          "yaw": -13.04,
+          "pitch": 0.0,
+          "distance": 1.234
+        },
+        "bookshelf": {
+          "yaw": 119.52,
+          "pitch": 0.0,
+          "distance": 1.519
+        },
+        "desk": {
+          "yaw": -138.65,
+          "pitch": 0.0,
+          "distance": 1.33
+        },
+        "window": {
+          "yaw": -73.85,
+          "pitch": 0.0,
+          "distance": 2.164
+        },
+        "entrance": {
+          "yaw": 48.63,
+          "pitch": 0.0,
+          "distance": 1.667
+        }
+      }
+    },
+    {
+      "slug": "east_window",
+      "title": "Garden window",
+      "kind": "hotspot",
+      "icon": "eye",
+      "summary": "",
+      "position": [
+        3.1,
+        1.036,
+        1.85
+      ],
+      "views": {
+        "bookshelf": {
+          "yaw": 80.4,
+          "pitch": 3.24,
+          "distance": 4.419
+        },
+        "desk": {
+          "yaw": 77.27,
+          "pitch": 6.47,
+          "distance": 2.218
+        },
+        "window": {
+          "yaw": 24.49,
+          "pitch": 6.23,
+          "distance": 2.305
+        },
+        "entrance": {
+          "yaw": 58.86,
+          "pitch": 2.86,
+          "distance": 5.006
+        }
+      }
+    },
+    {
+      "slug": "floor_lamp",
+      "title": "Floor lamp",
+      "kind": "hotspot",
+      "icon": "eye",
+      "summary": "",
+      "position": [
+        1.468,
+        -0.376,
+        1.75
+      ],
+      "views": {
+        "office": {
+          "yaw": 41.28,
+          "pitch": 5.06,
+          "distance": 1.702
+        },
+        "bookshelf": {
+          "yaw": 103.97,
+          "pitch": 3.07,
+          "distance": 2.805
+        },
+        "desk": {
+          "yaw": 150.78,
+          "pitch": 8.04,
+          "distance": 1.072
+        },
+        "window": {
+          "yaw": -45.34,
+          "pitch": 8.89,
+          "distance": 0.97
+        },
+        "entrance": {
+          "yaw": 66.09,
+          "pitch": 2.96,
+          "distance": 2.9
+        }
+      }
+    },
+    {
+      "slug": "entrance",
+      "title": "Entrance",
+      "kind": "door",
+      "icon": "door",
+      "summary": "",
+      "position": [
+        -1.18,
+        -2.1,
+        1.4
+      ],
+      "views": {
+        "office": {
+          "yaw": -106.39,
+          "pitch": -7.15,
+          "distance": 1.607
+        },
+        "bookshelf": {
+          "yaw": 178.32,
+          "pitch": -4.76,
+          "distance": 2.409
+        },
+        "desk": {
+          "yaw": -141.22,
+          "pitch": -3.37,
+          "distance": 3.405
+        },
+        "window": {
+          "yaw": -107.5,
+          "pitch": -3.28,
+          "distance": 3.497
+        },
+        "entrance": {
+          "yaw": 180.0,
+          "pitch": -19.98,
+          "distance": 0.585
+        }
+      },
+      "target": ""
+    }
+  ]
+}
