@@ -184,12 +184,17 @@
 		return [...new Set(list)].filter((w) => w !== v);
 	}
 
+	/** The hotspot (e.g. the bookshelf) whose picking view lives at viewpoint `slug`, if any. */
+	const focusAt = (slug: string) => space.hotspots.find((h) => h.focus?.viewpoint === slug && h.items?.length);
+
+	/** Scene bar and minimap: a viewpoint with a picking view (the bookshelf) opens straight into it. */
 	function goToViewpoint(slug: string) {
+		const target = focusAt(slug);
 		if (slug === viewpoint.slug) {
-			// already here, zoomed in on a shelf: back to the plain view
-			if (focus) leaveFocus();
+			if (target && !focus && !moving && !loading) startFocus(target);
 			return;
 		}
+		pendingFocus = target ?? null;
 		goto(`/${space.slug}/${slug}`, { replaceState: true, noScroll: true, keepFocus: true });
 	}
 
