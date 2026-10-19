@@ -52,7 +52,13 @@ def configure_cycles(scene, samples=128):
     finish_scene(scene)
 
 
-def render_camera(scene, cam, out_dir, scale=100, filename=None, fmt="PNG"):
+# --- Output and format (panoramas, cube faces, close-ups) -----------------------------
+# Kept apart from the quality/light-path settings above.
+
+
+def render_camera(scene, cam, out_dir, scale=100, filename=None, fmt="PNG", quality=85):
+    """Renders `cam` at its "res" x scale% to <out_dir>/<filename>.<ext>.
+    quality applies to WEBP/JPEG; PNG is written as 8-bit RGB (cube faces for tiling)."""
     hidden = []
     for col_name in cam.get("hide", []):
         col = bpy.data.collections.get(col_name)
@@ -68,7 +74,11 @@ def render_camera(scene, cam, out_dir, scale=100, filename=None, fmt="PNG"):
     settings = scene.render.image_settings
     settings.file_format = fmt
     if fmt in ("WEBP", "JPEG"):
-        settings.quality = 85
+        settings.quality = quality
+    else:
+        settings.color_mode = "RGB"
+        settings.color_depth = "8"
+        settings.compression = 15
     scene.camera = cam
     w, h = cam["res"]
     scene.render.resolution_x, scene.render.resolution_y = int(w), int(h)

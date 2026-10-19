@@ -1,23 +1,49 @@
 import * as THREE from 'three';
+import type { PanoTiles } from '$lib/types';
+import { levelTiles, previewGeometry, tileBox, tileCentre, tileGeometry, type Tile } from './cube';
+import { TextureStore, type TextureOptions } from './textures';
 
 /**
- * Renders an equirectangular panorama and handles look-around input.
+ * Renders a panorama and handles look-around input.
  *
  * Angles follow the export convention: yaw 0 = north (image centre), clockwise,
- * so east = 90. Panoramas are drawn on an inside-out box whose shader samples
- * u = atan2(z, x) / 2π + 0.5 (as Three.js does for equirect backgrounds), so
- * north maps to +X and east to +Z.
+ * so east = 90. In viewer space north is +X, east is +Z and up is +Y (direction()).
+ *
+ * A panorama is either a cube-face tile pyramid (sharp, streamed by level of detail) or,
+ * as a fallback, one equirectangular image:
+ * - Tiles: a low-res preview of all six faces paints first, then the tiles in view at
+ *   the level matching the screen's pixel density load, nearest the view centre first
+ *   (plus the coarsest level of the faces in view, to refine quickly). Finer levels sit on
+ *   slightly smaller cubes, and each layer draws with depth testing, so every pixel shows
+ *   the finest loaded tile and is blended once (crossfades stay correct). Tiles carry a
+ *   1 px border from their neighbours and are trilinear-mipmapped with anisotropy, so
+ *   there are no seams and no shimmer.
+ * - Equirect: an inside-out box whose shader samples u = atan2(z, x) / 2π + 0.5, with
+ *   explicit gradients so mipmaps don't break where u wraps.
  *
  * Two layers (current and incoming) let viewpoint changes crossfade, each drawn
  * with its own field of view so the old view can zoom in while the new one settles.
+ * Transitions crossfade as soon as the incoming preview is ready, then refine.
  */
+
+export interface PanoSource {
+	/** The equirectangular panorama: the fallback, and the panorama's identity. */
+	url: string;
+	/** Tile pyramid, with `path` and `preview` as URLs. */
+	tiles?: PanoTiles;
+}
 
 const MIN_FOV = 30;
 const MAX_FOV = 90;
 const MAX_PITCH = 85;
-// Each 4096x2048 panorama is ~32MB of GPU memory, so phones keep fewer.
-const CACHE_SIZE =
-	typeof matchMedia !== 'undefined' && matchMedia('(pointer: coarse), (max-width: 760px)').matches ? 3 : 6;
+const SMALL_SCREEN =
+	typeof matchMedia !== 'undefined' && matchMedia('(pointer: coarse), (max-width: 760px)').matches;
+/** GPU memory for panorama textures: a 512 px tile is ~1.4 MB with mipmaps, a 4096 equirect ~45 MB. */
+const TEXTURE_BUDGET = (SMALL_SCREEN ? 128 : 384) * 2 ** 20;
+/** A level is fine enough once it has this fraction of the screen's pixels per degree. */
+const LOD_BIAS = 0.9;
+/** Tiles are requested for a slightly wider view than the screen, so turning finds them ready. */
+const PREFETCH_FOV = 1.2;
 const DRAG_THRESHOLD = 6;
 const INERTIA_DECAY_MS = 260;
 const INERTIA_MAX_SPEED = 0.5;
@@ -29,6 +55,14 @@ const STEP_MS = 580;
 const REDUCED_MS = 220;
 const STEP_ZOOM_OUT = 0.6;
 const STEP_ZOOM_IN = 0.8;
+
+/** Cube half-sizes: the preview/equirect at the back, finer tile levels in front of coarser ones. */
+const BACKGROUND_RADIUS = 5;
+const tileRadius = (level: number) => 4.5 - 0.1 * level;
+
+const PREVIEW: TextureOptions = { mipmaps: false };
+const TILE: TextureOptions = { mipmaps: true };
+const EQUIRECT: TextureOptions = { mipmaps: true, wrap: true };
 
 export interface ScreenPoint {
 	x: number;
@@ -44,7 +78,7 @@ export function direction(yaw: number, pitch: number) {
 
 export const prefersReducedMotion = () => matchMedia('(prefers-reduced-motion: reduce)').matches;
 
-const vertexShader = /* glsl */ `
+const equirectVertexShader = /* glsl */ `
 	varying vec3 vDir;
 	void main() {
 		vDir = position;
@@ -52,25 +86,66 @@ const vertexShader = /* glsl */ `
 	}
 `;
 
-const fragmentShader = /* glsl */ `
+const equirectFragmentShader = /* glsl */ `
 	#include <common>
 	uniform sampler2D map;
 	uniform float opacity;
 	varying vec3 vDir;
 	void main() {
 		vec3 dir = normalize(vDir);
-		vec2 uv = vec2(atan(dir.z, dir.x) * RECIPROCAL_PI2 + 0.5, asin(clamp(dir.y, -1.0, 1.0)) * RECIPROCAL_PI + 0.5);
-		gl_FragColor = vec4(texture2D(map, uv).rgb, opacity);
+		// v = 0 is the top row (textures are uploaded unflipped)
+		vec2 uv = vec2(atan(dir.z, dir.x) * RECIPROCAL_PI2 + 0.5, 0.5 - asin(clamp(dir.y, -1.0, 1.0)) * RECIPROCAL_PI);
+		// Gradients from a copy of u that wraps elsewhere, wherever u itself jumps from 1 to 0,
+		// so the mip level stays right along the seam (behind you, due south).
+		float uw = fract(uv.x + 0.5);
+		float dux = dFdx(uv.x), duy = dFdy(uv.x), dwx = dFdx(uw), dwy = dFdy(uw);
+		vec2 gx = vec2(abs(dux) < abs(dwx) ? dux : dwx, dFdx(uv.y));
+		vec2 gy = vec2(abs(duy) < abs(dwy) ? duy : dwy, dFdy(uv.y));
+		gl_FragColor = vec4(textureGrad(map, uv, gx, gy).rgb, opacity);
+		#include <colorspace_fragment>
+	}
+`;
+
+const tileVertexShader = /* glsl */ `
+	varying vec2 vUv;
+	void main() {
+		vUv = uv;
+		gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+	}
+`;
+
+const tileFragmentShader = /* glsl */ `
+	uniform sampler2D map;
+	uniform float opacity;
+	varying vec2 vUv;
+	void main() {
+		gl_FragColor = vec4(texture2D(map, vUv).rgb, opacity);
 		#include <colorspace_fragment>
 	}
 `;
 
 interface Layer {
-	mesh: THREE.Mesh<THREE.BoxGeometry, THREE.ShaderMaterial>;
-	url: string | null;
+	group: THREE.Group;
+	source: PanoSource | null;
+	/** 'tiles' draws the preview + tiles; 'equirect' the fallback image. */
+	mode: 'tiles' | 'equirect';
+	/** Url of the background texture (preview or equirect). */
+	background: string | null;
+	backgroundMesh: THREE.Mesh | null;
+	/** Shared by all of the layer's materials. */
+	opacity: { value: number };
 	/** Field of view multiplier while transitioning. */
 	zoom: number;
-	opacity: number;
+	/** Tile url -> mesh, for every loaded tile added so far. */
+	tiles: Map<string, THREE.Mesh<THREE.BufferGeometry, THREE.ShaderMaterial>>;
+	/** Tiles the layer's current view wants, in priority order. */
+	wanted: string[];
+}
+
+interface Background {
+	mode: Layer['mode'];
+	url: string;
+	texture: THREE.Texture;
 }
 
 interface Animation {
@@ -97,6 +172,13 @@ const smoothstep = (a: number, b: number, t: number) => {
 	return x * x * (3 - 2 * x);
 };
 const wrap = (deg: number) => ((((deg + 180) % 360) + 360) % 360) - 180;
+const toSource = (source: PanoSource | string): PanoSource => (typeof source === 'string' ? { url: source } : source);
+
+interface TileInfo {
+	tile: Tile;
+	box: THREE.Box3;
+	centre: THREE.Vector3;
+}
 
 export class PanoViewer {
 	yaw = 0;
@@ -106,14 +188,20 @@ export class PanoViewer {
 	private renderer: THREE.WebGLRenderer;
 	private scene = new THREE.Scene();
 	private camera: THREE.PerspectiveCamera;
-	private loader = new THREE.TextureLoader();
-	private geometry = new THREE.BoxGeometry(10, 10, 10);
+	private cullCamera = new THREE.PerspectiveCamera();
+	private frustum = new THREE.Frustum();
+	private box = new THREE.BoxGeometry(2 * BACKGROUND_RADIUS, 2 * BACKGROUND_RADIUS, 2 * BACKGROUND_RADIUS);
+	private store: TextureStore;
+	/** Per tile pyramid (by path) and level: tiles with their culling boxes. */
+	private tileInfo = new Map<string, TileInfo[][]>();
+	/** Shared geometries: tile quads and preview cubes. */
+	private geometries = new Map<string, THREE.BufferGeometry>();
+	/** Panoramas whose tiles turned out to be missing: shown from the equirect instead. */
+	private broken = new Set<string>();
 	private current: Layer;
 	private incoming: Layer;
-	/** url -> texture, least recently used first. */
-	private cache = new Map<string, Promise<THREE.Texture>>();
 	/** Panorama a pending load or transition is heading to; never evicted. */
-	private target: string | null = null;
+	private target: PanoSource | null = null;
 	private token = 0;
 	private disposed = false;
 	private animation: Animation | null = null;
@@ -140,6 +228,12 @@ export class PanoViewer {
 		this.renderer.outputColorSpace = THREE.SRGBColorSpace;
 		this.renderer.autoClear = false;
 		this.camera = new THREE.PerspectiveCamera(this.fov, 1, 0.1, 100);
+		this.store = new TextureStore(
+			this.renderer,
+			TEXTURE_BUDGET,
+			() => this.invalidate(),
+			(url) => this.forget(url)
+		);
 		this.current = this.createLayer();
 		this.incoming = this.createLayer();
 
@@ -156,9 +250,9 @@ export class PanoViewer {
 		this.frame = requestAnimationFrame(this.loop);
 	}
 
-	/** Url of the panorama on screen (after any transition settles). */
+	/** Url (PanoSource.url) of the panorama on screen (after any transition settles). */
 	get url() {
-		return this.current.url;
+		return this.current.source?.url ?? null;
 	}
 
 	/** True while a viewpoint transition is running. */
@@ -166,43 +260,47 @@ export class PanoViewer {
 		return this.target !== null;
 	}
 
-	/** Loads (or reuses) a panorama texture and uploads it to the GPU. */
-	preload(url: string): Promise<THREE.Texture> {
-		const cached = this.cache.get(url);
-		if (cached) {
-			this.cache.delete(url);
-			this.cache.set(url, cached);
-			return cached;
+	/**
+	 * Loads (or reuses) what a panorama needs to appear: its tile preview, or the equirect
+	 * when it has no tiles or they're missing.
+	 */
+	preload(source: PanoSource | string): Promise<Background> {
+		const src = toSource(source);
+		if (src.tiles && !this.broken.has(src.url)) {
+			const url = src.tiles.preview;
+			return this.store.load(url, PREVIEW).then(
+				(texture): Background => ({ mode: 'tiles', url, texture }),
+				(err) => {
+					if (this.disposed) throw err;
+					console.warn(`No tiles for ${src.url}, using the equirect`, err);
+					this.broken.add(src.url);
+					return this.preload(src);
+				}
+			);
 		}
-		const promise = this.loader.loadAsync(url).then((texture) => {
-			if (this.disposed) {
-				texture.dispose();
-				throw new Error('Viewer disposed');
-			}
-			texture.colorSpace = THREE.SRGBColorSpace;
-			// Sampled by direction in the shader: no mipmaps (they'd show a seam where u wraps).
-			texture.generateMipmaps = false;
-			texture.minFilter = THREE.LinearFilter;
-			texture.wrapS = THREE.RepeatWrapping;
-			this.renderer.initTexture(texture);
-			return texture;
-		});
-		promise.catch(() => {
-			if (this.cache.get(url) === promise) this.cache.delete(url);
-		});
-		this.cache.set(url, promise);
-		this.evict();
-		return promise;
+		return this.store.load(src.url, EQUIRECT).then((texture): Background => ({ mode: 'equirect', url: src.url, texture }));
 	}
 
-	/** Warms the cache in the background, one panorama at a time. */
-	prefetch(urls: string[]) {
+	/**
+	 * Warms the cache in the background, one panorama at a time: its preview, or
+	 * equirect, plus the coarsest tile level (six 512 px tiles), so a step lands sharp-ish
+	 * straight away and refines from there.
+	 */
+	prefetch(sources: (PanoSource | string)[]) {
 		const token = this.token;
 		const next = (i: number) => {
-			if (i >= urls.length || token !== this.token) return;
+			if (i >= sources.length || token !== this.token) return;
 			const run = () => {
 				if (token !== this.token) return;
-				this.preload(urls[i])
+				// The tiles in view come first.
+				if (this.store.busy) return void setTimeout(() => next(i), 300);
+				const src = toSource(sources[i]);
+				this.preload(src)
+					.then((bg) => {
+						if (bg.mode !== 'tiles' || token !== this.token) return;
+						const coarse = this.tilesOf(src.tiles!, 0).map(({ tile }) => this.store.load(tile.url, TILE));
+						return Promise.allSettled(coarse);
+					})
 					.catch(() => {})
 					.then(() => next(i + 1));
 			};
@@ -212,15 +310,16 @@ export class PanoViewer {
 		next(0);
 	}
 
-	/** Shows a panorama straight away, no transition. */
-	async setPanorama(url: string) {
+	/** Shows a panorama straight away, no transition. Resolves once its preview is on screen. */
+	async setPanorama(source: PanoSource | string) {
+		const src = toSource(source);
 		this.settle();
 		const token = ++this.token;
-		this.target = url;
+		this.target = src;
 		try {
-			const texture = await this.preload(url);
+			const background = await this.preload(src);
 			if (token !== this.token) return;
-			this.assign(this.current, texture, url);
+			this.assign(this.current, src, background);
 			this.invalidate();
 		} finally {
 			if (token === this.token) this.target = null;
@@ -232,13 +331,14 @@ export class PanoViewer {
 	 * With `reduced`, just a quick crossfade at the current heading. Resolves false
 	 * if another transition replaced this one.
 	 */
-	async transitionTo(url: string, { yaw, reduced = false }: { yaw: number; reduced?: boolean }) {
+	async transitionTo(source: PanoSource | string, { yaw, reduced = false }: { yaw: number; reduced?: boolean }) {
+		const src = toSource(source);
 		this.settle();
 		const token = ++this.token;
-		this.target = url;
+		this.target = src;
 		this.inertia = null;
 		this.pinch = null;
-		const texture = this.preload(url);
+		const background = this.preload(src);
 		try {
 			if (!reduced) {
 				const from = { yaw: this.yaw, pitch: this.pitch };
@@ -251,16 +351,16 @@ export class PanoViewer {
 				});
 				if (token !== this.token) return false;
 			}
-			const tex = await texture;
+			const bg = await background;
 			if (token !== this.token) return false;
-			this.assign(this.incoming, tex, url);
+			this.assign(this.incoming, src, bg);
 			await this.animate(reduced ? REDUCED_MS : STEP_MS, (t) => {
 				if (reduced) {
-					this.incoming.opacity = t;
+					this.incoming.opacity.value = t;
 					return;
 				}
 				this.current.zoom = THREE.MathUtils.lerp(1, STEP_ZOOM_OUT, easeIn(t));
-				this.incoming.opacity = smoothstep(0.25, 0.85, t);
+				this.incoming.opacity.value = smoothstep(0.25, 0.85, t);
 				this.incoming.zoom = THREE.MathUtils.lerp(STEP_ZOOM_IN, 1, easeOut(smoothstep(0.25, 1, t)));
 			});
 			if (token !== this.token) return false;
@@ -275,9 +375,9 @@ export class PanoViewer {
 	settle() {
 		const animation = this.animation;
 		this.animation = null;
-		if (this.incoming.url) this.commit();
+		if (this.incoming.source) this.commit();
 		this.current.zoom = 1;
-		this.current.opacity = 1;
+		this.current.opacity.value = 1;
 		this.target = null;
 		this.token++;
 		animation?.done();
@@ -296,13 +396,19 @@ export class PanoViewer {
 		this.invalidate();
 	}
 
+	/** Sets the vertical field of view (degrees, clamped to the zoom range). */
+	setFov(fov: number) {
+		this.fov = THREE.MathUtils.clamp(fov, MIN_FOV, MAX_FOV);
+		this.invalidate();
+	}
+
 	/**
 	 * A still of part of the panorama, as a data URL. Renders through the main
 	 * canvas (so colour management matches the live view), copies the centre
-	 * out, then restores the live view.
+	 * out, then restores the live view. Uses whatever tiles are already loaded.
 	 */
 	snapshot(yaw: number, pitch: number, fov: number, width: number, height: number) {
-		if (!this.current.url) return '';
+		if (!this.current.source) return '';
 		const { width: cw, height: ch } = this.renderer.domElement;
 		const cam = this.camera.clone();
 		// Fit the requested aspect inside the canvas, then size fov to that crop.
@@ -312,7 +418,7 @@ export class PanoViewer {
 		cam.lookAt(direction(yaw, pitch));
 		cam.updateMatrixWorld();
 		this.renderer.clear();
-		this.drawLayer(this.current, cam, THREE.MathUtils.radToDeg(Math.min(cropFovRad, Math.PI * 0.95)), 1);
+		this.drawLayer(this.current, cam, THREE.MathUtils.radToDeg(Math.min(cropFovRad, Math.PI * 0.95)), false);
 		const out = document.createElement('canvas');
 		out.width = width;
 		out.height = height;
@@ -371,54 +477,211 @@ export class PanoViewer {
 		this.canvas.removeEventListener('keydown', this.onKeyDown);
 		this.token++;
 		this.animation = null;
-		for (const promise of this.cache.values()) promise.then((t) => t.dispose(), () => {});
-		this.cache.clear();
-		for (const layer of [this.current, this.incoming]) layer.mesh.material.dispose();
-		this.geometry.dispose();
+		for (const layer of [this.current, this.incoming]) this.clear(layer);
+		this.store.dispose();
+		for (const g of this.geometries.values()) g.dispose();
+		this.box.dispose();
 		this.renderer.dispose();
 	}
 
 	private createLayer(): Layer {
-		const material = new THREE.ShaderMaterial({
-			uniforms: { map: { value: null }, opacity: { value: 1 } },
-			vertexShader,
-			fragmentShader,
-			side: THREE.BackSide,
+		const group = new THREE.Group();
+		group.visible = false;
+		this.scene.add(group);
+		return {
+			group,
+			source: null,
+			mode: 'equirect',
+			background: null,
+			backgroundMesh: null,
+			opacity: { value: 1 },
+			zoom: 1,
+			tiles: new Map(),
+			wanted: []
+		};
+	}
+
+	private material(map: THREE.Texture, opacity: { value: number }, equirect = false) {
+		return new THREE.ShaderMaterial({
+			uniforms: { map: { value: map }, opacity },
+			vertexShader: equirect ? equirectVertexShader : tileVertexShader,
+			fragmentShader: equirect ? equirectFragmentShader : tileFragmentShader,
+			side: THREE.DoubleSide,
 			transparent: true,
-			depthTest: false,
-			depthWrite: false
+			depthTest: true,
+			depthWrite: true
 		});
-		const mesh = new THREE.Mesh(this.geometry, material);
-		mesh.frustumCulled = false;
-		mesh.visible = false;
-		this.scene.add(mesh);
-		return { mesh, url: null, zoom: 1, opacity: 1 };
 	}
 
-	private assign(layer: Layer, texture: THREE.Texture | null, url: string | null) {
-		layer.mesh.material.uniforms.map.value = texture;
-		layer.url = url;
+	private geometry(key: string, make: () => THREE.BufferGeometry) {
+		let g = this.geometries.get(key);
+		if (!g) {
+			g = make();
+			this.geometries.set(key, g);
+		}
+		return g;
+	}
+
+	/** Removes a layer's meshes (textures stay in the store). */
+	private clear(layer: Layer) {
+		for (const mesh of layer.tiles.values()) {
+			layer.group.remove(mesh);
+			mesh.material.dispose();
+		}
+		layer.tiles.clear();
+		if (layer.backgroundMesh) {
+			layer.group.remove(layer.backgroundMesh);
+			(layer.backgroundMesh.material as THREE.Material).dispose();
+			layer.backgroundMesh = null;
+		}
+		layer.source = null;
+		layer.background = null;
+		layer.wanted = [];
+	}
+
+	private assign(layer: Layer, source: PanoSource | null, background: Background | null) {
+		this.clear(layer);
 		layer.zoom = 1;
-		layer.opacity = layer === this.incoming ? 0 : 1;
+		layer.opacity.value = layer === this.incoming ? 0 : 1;
+		if (!source || !background) return;
+		layer.source = source;
+		layer.mode = background.mode;
+		layer.background = background.url;
+		let mesh: THREE.Mesh;
+		if (background.mode === 'tiles') {
+			const { previewSize, bleed } = source.tiles!;
+			const geometry = this.geometry(`preview:${previewSize}:${bleed}`, () =>
+				previewGeometry(previewSize, bleed, BACKGROUND_RADIUS)
+			);
+			mesh = new THREE.Mesh(geometry, this.material(background.texture, layer.opacity));
+		} else {
+			mesh = new THREE.Mesh(this.box, this.material(background.texture, layer.opacity, true));
+		}
+		mesh.frustumCulled = false;
+		mesh.renderOrder = 0;
+		layer.backgroundMesh = mesh;
+		layer.group.add(mesh);
 	}
 
-	/** Incoming becomes current; the old texture stays in the cache. */
+	/** Swaps a tiled layer to its equirect once its tiles turn out to be missing. */
+	private fallBack(layer: Layer) {
+		const source = layer.source!;
+		if (this.broken.has(source.url)) return;
+		this.broken.add(source.url);
+		this.preload(source)
+			.then((bg) => {
+				if (layer.source !== source) return;
+				const { zoom, opacity } = { zoom: layer.zoom, opacity: layer.opacity.value };
+				this.assign(layer, source, bg);
+				layer.zoom = zoom;
+				layer.opacity.value = opacity;
+				this.invalidate();
+			})
+			.catch((err) => console.error(`Couldn't load ${source.url}`, err));
+	}
+
+	/** A texture was evicted: drop meshes that used it. */
+	private forget(url: string) {
+		for (const layer of [this.current, this.incoming]) {
+			const mesh = layer.tiles.get(url);
+			if (!mesh) continue;
+			layer.group.remove(mesh);
+			mesh.material.dispose();
+			layer.tiles.delete(url);
+		}
+	}
+
+	/** Incoming becomes current; the old textures stay in the cache. */
 	private commit() {
 		[this.current, this.incoming] = [this.incoming, this.current];
 		this.current.zoom = 1;
-		this.current.opacity = 1;
+		this.current.opacity.value = 1;
 		this.assign(this.incoming, null, null);
 		this.evict();
 		this.invalidate();
 	}
 
 	private evict() {
-		for (const [url, promise] of this.cache) {
-			if (this.cache.size <= CACHE_SIZE) break;
-			if (url === this.current.url || url === this.incoming.url || url === this.target) continue;
-			this.cache.delete(url);
-			promise.then((t) => t.dispose(), () => {});
+		const keep = new Set<string>();
+		for (const layer of [this.current, this.incoming]) {
+			if (layer.background) keep.add(layer.background);
+			for (const url of layer.wanted) keep.add(url);
 		}
+		const target = this.target;
+		if (target) {
+			keep.add(target.url);
+			if (target.tiles) keep.add(target.tiles.preview);
+		}
+		this.store.evict(keep);
+	}
+
+	private tilesOf(tiles: PanoTiles, level: number) {
+		let levels = this.tileInfo.get(tiles.path);
+		if (!levels) {
+			levels = [];
+			this.tileInfo.set(tiles.path, levels);
+		}
+		return (levels[level] ??= levelTiles(tiles, level).map((tile) => ({
+			tile,
+			box: tileBox(tile),
+			centre: tileCentre(tile)
+		})));
+	}
+
+	/** Index of the coarsest level with enough pixels per degree for `fov` on this canvas. */
+	private levelFor(tiles: PanoTiles, fov: number) {
+		// Device pixels per radian at the centre of the screen; a cube face of N px has N / 2
+		// per radian at its centre (and more towards its edges).
+		const need = this.renderer.domElement.height / 2 / Math.tan(THREE.MathUtils.degToRad(fov) / 2);
+		const i = tiles.levels.findIndex((size) => size / 2 >= need * LOD_BIAS);
+		return i < 0 ? tiles.levels.length - 1 : i;
+	}
+
+	/**
+	 * Works out which tiles `layer` needs for `camera` (the target level in view, plus the
+	 * coarsest level for the faces in view) and adds meshes for the loaded ones.
+	 */
+	private updateTiles(layer: Layer, camera: THREE.PerspectiveCamera) {
+		const tiles = layer.source?.tiles;
+		if (layer.mode !== 'tiles' || !tiles) {
+			layer.wanted = [];
+			return;
+		}
+		this.cullCamera.copy(camera);
+		this.cullCamera.fov = Math.min(150, camera.fov * PREFETCH_FOV);
+		this.cullCamera.updateProjectionMatrix();
+		this.frustum.setFromProjectionMatrix(
+			new THREE.Matrix4().multiplyMatrices(this.cullCamera.projectionMatrix, this.cullCamera.matrixWorldInverse)
+		);
+		const forward = camera.getWorldDirection(new THREE.Vector3());
+		const target = this.levelFor(tiles, camera.fov);
+		const levels = target > 0 ? [0, target] : [0];
+		const wanted: string[] = [];
+		for (const level of levels) {
+			const inView = this.tilesOf(tiles, level).filter((t) => this.frustum.intersectsBox(t.box));
+			inView.sort((a, b) => b.centre.dot(forward) - a.centre.dot(forward));
+			for (const { tile } of inView) {
+				wanted.push(tile.url);
+				if (this.store.failed(tile.url)) {
+					if (!this.broken.has(layer.source!.url)) console.warn(`Missing tile ${tile.url}, using the equirect`);
+					this.fallBack(layer);
+					layer.wanted = [];
+					return;
+				}
+				if (layer.tiles.has(tile.url)) continue;
+				const texture = this.store.get(tile.url);
+				if (!texture) continue;
+				const geometry = this.geometry(`${tile.url}`, () =>
+					tileGeometry(tile, tiles.bleed, tileRadius(tile.level))
+				);
+				const mesh = new THREE.Mesh(geometry, this.material(texture, layer.opacity));
+				// Finest first: with depth testing, coarser tiles (and the preview) only fill the gaps.
+				mesh.renderOrder = -1 - tile.level;
+				layer.tiles.set(tile.url, mesh);
+				layer.group.add(mesh);
+			}
+		}
+		layer.wanted = wanted;
 	}
 
 	/** Runs `step(t)` for t in 0..1 over `duration` ms; resolves early if settled. */
@@ -481,25 +744,40 @@ export class PanoViewer {
 		this.camera.lookAt(direction(this.yaw, this.pitch));
 		this.camera.updateMatrixWorld();
 		this.draw();
+		// Current layer's tiles first, then the incoming one's.
+		this.store.request([...new Set([...this.current.wanted, ...this.incoming.wanted])], TILE);
+		this.evict();
+		// For tests and debugging: data-pano="<level wanted>:<tiles loaded>/<tiles wanted>" or "equirect".
+		const tiles = this.current.mode === 'tiles' ? this.current.source?.tiles : undefined;
+		const loaded = this.current.wanted.filter((url) => this.current.tiles.has(url)).length;
+		this.canvas.dataset.pano = tiles
+			? `${tiles.levels[this.levelFor(tiles, this.fov)]}:${loaded}/${this.current.wanted.length}`
+			: this.current.source
+				? this.current.mode
+				: 'none';
 		this.onChange();
 	};
 
 	private draw() {
 		this.renderer.clear();
-		if (this.current.url) this.drawLayer(this.current, this.camera, this.fov * this.current.zoom, this.current.opacity);
-		if (this.incoming.url && this.incoming.opacity > 0)
-			this.drawLayer(this.incoming, this.camera, this.fov * this.incoming.zoom, this.incoming.opacity);
+		if (this.current.source) this.drawLayer(this.current, this.camera, this.fov * this.current.zoom);
+		if (this.incoming.source && this.incoming.opacity.value > 0)
+			this.drawLayer(this.incoming, this.camera, this.fov * this.incoming.zoom);
 	}
 
-	/** Draws one layer alone with the given fov, leaving `camera` as it was. */
-	private drawLayer(layer: Layer, camera: THREE.PerspectiveCamera, fov: number, opacity: number) {
+	/**
+	 * Draws one layer alone with the given fov, leaving `camera` as it was. Its own depth
+	 * buffer keeps finer tiles in front, so each pixel is blended once at the layer's opacity.
+	 */
+	private drawLayer(layer: Layer, camera: THREE.PerspectiveCamera, fov: number, refine = true) {
 		const fov0 = camera.fov;
 		camera.fov = fov;
 		camera.updateProjectionMatrix();
-		layer.mesh.material.uniforms.opacity.value = opacity;
-		layer.mesh.visible = true;
+		if (refine) this.updateTiles(layer, camera);
+		this.renderer.clearDepth();
+		layer.group.visible = true;
 		this.renderer.render(this.scene, camera);
-		layer.mesh.visible = false;
+		layer.group.visible = false;
 		camera.fov = fov0;
 		camera.updateProjectionMatrix();
 	}
