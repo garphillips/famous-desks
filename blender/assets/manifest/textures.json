@@ -1,0 +1,222 @@
+{
+  "ph_painted_brick": {
+    "kind": "texture",
+    "title": "Painted brick",
+    "source": "Poly Haven",
+    "page": "https://polyhaven.com/a/painted_brick",
+    "author": "Amal Kumar",
+    "license": "CC0",
+    "files": [
+      {
+        "url": "https://dl.polyhaven.org/file/ph-assets/Textures/jpg/2k/painted_brick/painted_brick_diff_2k.jpg",
+        "name": "painted_brick_diff_2k.jpg"
+      },
+      {
+        "url": "https://dl.polyhaven.org/file/ph-assets/Textures/jpg/2k/painted_brick/painted_brick_rough_2k.jpg",
+        "name": "painted_brick_rough_2k.jpg"
+      },
+      {
+        "url": "https://dl.polyhaven.org/file/ph-assets/Textures/jpg/2k/painted_brick/painted_brick_disp_2k.jpg",
+        "name": "painted_brick_disp_2k.jpg"
+      }
+    ]
+  },
+  "ph_white_plaster_02": {
+    "kind": "texture",
+    "title": "White plaster 02",
+    "source": "Poly Haven",
+    "page": "https://polyhaven.com/a/white_plaster_02",
+    "author": "Rob Tuytel",
+    "license": "CC0",
+    "files": [
+      {
+        "url": "https://dl.polyhaven.org/file/ph-assets/Textures/jpg/2k/white_plaster_02/white_plaster_02_diff_2k.jpg",
+        "name": "white_plaster_02_diff_2k.jpg"
+      },
+      {
+        "url": "https://dl.polyhaven.org/file/ph-assets/Textures/jpg/2k/white_plaster_02/white_plaster_02_rough_2k.jpg",
+        "name": "white_plaster_02_rough_2k.jpg"
+      },
+      {
+        "url": "https://dl.polyhaven.org/file/ph-assets/Textures/jpg/2k/white_plaster_02/white_plaster_02_disp_2k.jpg",
+        "name": "white_plaster_02_disp_2k.jpg"
+      }
+    ]
+  },
+  "ph_oak_veneer_01": {
+    "kind": "texture",
+    "title": "Oak veneer 01",
+    "source": "Poly Haven",
+    "page": "https://polyhaven.com/a/oak_veneer_01",
+    "author": "Jenelle van Heerden",
+    "license": "CC0",
+    "files": [
+      {
+        "url": "https://dl.polyhaven.org/file/ph-assets/Textures/jpg/2k/oak_veneer_01/oak_veneer_01_diff_2k.jpg",
+        "name": "oak_veneer_01_diff_2k.jpg"
+      },
+      {
+        "url": "https://dl.polyhaven.org/file/ph-assets/Textures/jpg/2k/oak_veneer_01/oak_veneer_01_rough_2k.jpg",
+        "name": "oak_veneer_01_rough_2k.jpg"
+      },
+      {
+        "url": "https://dl.polyhaven.org/file/ph-assets/Textures/jpg/2k/oak_veneer_01/oak_veneer_01_disp_2k.jpg",
+        "name": "oak_veneer_01_disp_2k.jpg"
+      }
+    ]
+  },
+  "acg_Wood063": {
+    "kind": "texture",
+    "title": "Wood 063",
+    "source": "ambientCG",
+    "page": "https://ambientcg.com/view?id=Wood063",
+    "author": "ambientCG (Lennart Demes)",
+    "license": "CC0",
+    "files": [
+      {
+        "url": "https://ambientcg.com/get?file=Wood063_2K-JPG.zip",
+        "name": "Wood063_2K-JPG.zip"
+      }
+    ]
+  },
+  "acg_Wood060": {
+    "kind": "texture",
+    "title": "Wood 060",
+    "source": "ambientCG",
+    "page": "https://ambientcg.com/view?id=Wood060",
+    "author": "ambientCG (Lennart Demes)",
+    "license": "CC0",
+    "files": [
+      {
+        "url": "https://ambientcg.com/get?file=Wood060_2K-JPG.zip",
+        "name": "Wood060_2K-JPG.zip"
+      }
+    ]
+  },
+  "acg_Wood092": {
+    "kind": "texture",
+    "title": "Wood 092",
+    "source": "ambientCG",
+    "page": "https://ambientcg.com/view?id=Wood092",
+    "author": "ambientCG (Lennart Demes)",
+    "license": "CC0",
+    "files": [
+      {
+        "url": "https://ambientcg.com/get?file=Wood092_2K-JPG.zip",
+        "name": "Wood092_2K-JPG.zip"
+      }
+    ]
+  },
+  "acg_Cardboard004": {
+    "kind": "texture",
+    "title": "Cardboard 004",
+    "source": "ambientCG",
+    "page": "https://ambientcg.com/view?id=Cardboard004",
+    "author": "ambientCG (Lennart Demes)",
+    "license": "CC0",
+    "files": [
+      {
+        "url": "https://ambientcg.com/get?file=Cardboard004_2K-JPG.zip",
+        "name": "Cardboard004_2K-JPG.zip"
+      }
+    ]
+  },
+  "acg_Paper001": {
+    "kind": "texture",
+    "title": "Paper 001",
+    "source": "ambientCG",
+    "page": "https://ambientcg.com/view?id=Paper001",
+    "author": "ambientCG (Lennart Demes)",
+    "license": "CC0",
+    "files": [
+      {
+        "url": "https://ambientcg.com/get?file=Paper001_2K-JPG.zip",
+        "name": "Paper001_2K-JPG.zip"
+      }
+    ]
+  },
+  "acg_Fabric030": {
+    "kind": "texture",
+    "title": "Fabric 030",
+    "source": "ambientCG",
+    "page": "https://ambientcg.com/view?id=Fabric030",
+    "author": "ambientCG (Lennart Demes)",
+    "license": "CC0",
+    "files": [
+      {
+        "url": "https://ambientcg.com/get?file=Fabric030_2K-JPG.zip",
+        "name": "Fabric030_2K-JPG.zip"
+      }
+    ]
+  },
+  "acg_Leather027": {
+    "kind": "texture",
+    "title": "Leather 027",
+    "source": "ambientCG",
+    "page": "https://ambientcg.com/view?id=Leather027",
+    "author": "ambientCG (Lennart Demes)",
+    "license": "CC0",
+    "files": [
+      {
+        "url": "https://ambientcg.com/get?file=Leather027_2K-JPG.zip",
+        "name": "Leather027_2K-JPG.zip"
+      }
+    ]
+  },
+  "acg_Plastic012A": {
+    "kind": "texture",
+    "title": "Plastic 012 A",
+    "source": "ambientCG",
+    "page": "https://ambientcg.com/view?id=Plastic012A",
+    "author": "ambientCG (Lennart Demes)",
+    "license": "CC0",
+    "files": [
+      {
+        "url": "https://ambientcg.com/get?file=Plastic012A_2K-JPG.zip",
+        "name": "Plastic012A_2K-JPG.zip"
+      }
+    ]
+  },
+  "acg_Metal009": {
+    "kind": "texture",
+    "title": "Metal 009",
+    "source": "ambientCG",
+    "page": "https://ambientcg.com/view?id=Metal009",
+    "author": "ambientCG (Lennart Demes)",
+    "license": "CC0",
+    "files": [
+      {
+        "url": "https://ambientcg.com/get?file=Metal009_2K-JPG.zip",
+        "name": "Metal009_2K-JPG.zip"
+      }
+    ]
+  },
+  "acg_SurfaceImperfections003": {
+    "kind": "texture",
+    "title": "Surface Imperfections 003",
+    "source": "ambientCG",
+    "page": "https://ambientcg.com/view?id=SurfaceImperfections003",
+    "author": "ambientCG (Lennart Demes)",
+    "license": "CC0",
+    "files": [
+      {
+        "url": "https://ambientcg.com/get?file=SurfaceImperfections003_2K-JPG.zip",
+        "name": "SurfaceImperfections003_2K-JPG.zip"
+      }
+    ]
+  },
+  "acg_SurfaceImperfections015": {
+    "kind": "texture",
+    "title": "Surface Imperfections 015",
+    "source": "ambientCG",
+    "page": "https://ambientcg.com/view?id=SurfaceImperfections015",
+    "author": "ambientCG (Lennart Demes)",
+    "license": "CC0",
+    "files": [
+      {
+        "url": "https://ambientcg.com/get?file=SurfaceImperfections015_2K-JPG.zip",
+        "name": "SurfaceImperfections015_2K-JPG.zip"
+      }
+    ]
+  }
+}
