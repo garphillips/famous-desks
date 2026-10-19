@@ -64,6 +64,7 @@ def render_camera(scene, cam, out_dir, scale=100, filename=None, fmt="PNG"):
     exposure = scene.view_settings.exposure
     if "exposure" in cam:
         scene.view_settings.exposure = cam["exposure"]
+    scene.view_settings.exposure += cam.get("brighten", 0.0)
     settings = scene.render.image_settings
     settings.file_format = fmt
     if fmt in ("WEBP", "JPEG"):

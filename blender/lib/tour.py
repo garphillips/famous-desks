@@ -10,6 +10,7 @@ north (+Y). Yaw increases clockwise when seen from above (east = 90).
 import math
 
 import bpy
+from mathutils import Vector
 
 from .geo import collection, look_at
 
@@ -41,7 +42,11 @@ def viewpoint(slug, title, xy, order, look_at=None, height=EYE_HEIGHT, res=(4096
 
 
 def hotspot(slug, title, loc, icon="eye", summary="", kind="hotspot", **extra):
-    """icon: 'eye' (look closer) or 'info'. kind: 'hotspot' or 'door' (links to another space)."""
+    """icon: 'eye' (look closer) or 'info'. kind: 'hotspot' or 'door' (links to another space).
+
+    extra: e.g. target='<space>' for doors, or model='<object name>' to export
+    that object as details/<slug>/model.glb for the 3D view.
+    """
     empty = bpy.data.objects.new(f"hs_{slug}", None)
     empty.empty_display_type = "SPHERE"
     empty.empty_display_size = 0.06
@@ -77,4 +82,32 @@ def plan_camera(width, depth, margin=0.6, px=1600):
     cam["res"] = (px, px)
     cam["hide"] = ["Ceiling"]
     cam["exposure"] = 0.0
+    return cam
+
+
+def detail_camera(hotspot_slug, loc, target, lens=50, fstop=None, brighten=0.0, res=(1600, 1200)):
+    """Close-up render for a hotspot's detail panel.
+
+    Cameras are numbered per hotspot in the order they are added; export.py
+    renders them to details/<hotspot>/closeup-<n>.webp. fstop enables a
+    shallow depth of field focused on the target; brighten adds stops on top
+    of the scene's exposure for this shot (e.g. objects in shadow on the floor).
+    """
+    index = 1 + sum(1 for o in bpy.data.objects
+                    if o.get("kind") == "detail" and o.get("hotspot") == hotspot_slug)
+    cam = _camera(f"dc_{hotspot_slug}_{index}", collection("Detail cameras"), loc)
+    cam.data.lens = lens
+    cam.data.sensor_width = 36
+    cam.data.clip_start = 0.02
+    look_at(cam, target)
+    if fstop:
+        cam.data.dof.use_dof = True
+        cam.data.dof.focus_distance = (cam.location - Vector(target)).length
+        cam.data.dof.aperture_fstop = fstop
+    if brighten:
+        cam["brighten"] = brighten
+    cam["kind"] = "detail"
+    cam["hotspot"] = hotspot_slug
+    cam["index"] = index
+    cam["res"] = res
     return cam

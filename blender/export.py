@@ -1,11 +1,14 @@
 """Export a built room for the website: tour data, panoramas and floor plan.
 
-    blender -b blender/build/jobs_room.blend -P blender/export.py -- [--no-render] [--samples 64] [--scale 100]
+    blender -b blender/build/jobs_room.blend -P blender/export.py -- [--no-render] [--only-details]
+                                                                    [--samples 64] [--scale 100]
 
 Writes content/spaces/<slug>/:
     space.json          viewpoints, hotspots (with yaw/pitch per viewpoint), plan mapping
     panos/<vp>.webp     equirectangular panoramas (centre = north, yaw clockwise)
     plan.webp           top-down floor plan for the minimap
+    details/<hotspot>/closeup-<n>.webp   close-up renders from the hotspot's detail cameras
+    details/<hotspot>/model.glb          the hotspot's `model` object, for the 3D view
 and updates content/spaces/index.json (the list of all spaces).
 """
 
@@ -16,7 +19,7 @@ import os
 import sys
 
 import bpy
-from mathutils import Vector
+from mathutils import Matrix, Vector
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, HERE)
@@ -87,6 +90,68 @@ def space_title(slug):
         return ""
 
 
+def export_model(obj, path):
+    """Write one object as a self-contained .glb: real-world metres, Y-up,
+    modifiers and transform applied, centred horizontally and resting on y=0,
+    facing +Z (its Blender front, -Y). Room position and rotation are dropped."""
+    copy = obj.copy()
+    copy.data = obj.data.copy()
+    bpy.context.scene.collection.objects.link(copy)
+    copy.matrix_world = Matrix.Diagonal((*obj.matrix_world.to_scale(), 1.0))
+    bpy.context.view_layer.update()
+    corners = [copy.matrix_world @ Vector(c) for c in copy.bound_box]
+    lo = Vector((min(c.x for c in corners), min(c.y for c in corners), min(c.z for c in corners)))
+    hi = Vector((max(c.x for c in corners), max(c.y for c in corners), max(c.z for c in corners)))
+    copy.location = (-(lo.x + hi.x) / 2, -(lo.y + hi.y) / 2, -lo.z)
+    bpy.context.view_layer.update()
+    for o in bpy.context.view_layer.objects:
+        o.select_set(False)
+    copy.select_set(True)
+    bpy.context.view_layer.objects.active = copy
+    bpy.ops.export_scene.gltf(
+        filepath=path, export_format="GLB", use_selection=True, export_apply=True,
+        export_yup=True, export_cameras=False, export_lights=False, export_extras=False,
+        export_animations=False, export_materials="EXPORT")
+    mesh = copy.data
+    bpy.data.objects.remove(copy)
+    bpy.data.meshes.remove(mesh)
+    print(f"Wrote {path} ({os.path.getsize(path) / 1e6:.2f} MB)")
+
+
+def export_details(scene, hotspots, out, render, scale):
+    """Close-up renders and glTF models per hotspot. Returns {slug: detail entry}."""
+    cams = sorted((o for o in scene.objects if o.get("kind") == "detail"),
+                  key=lambda o: (o["hotspot"], o["index"]))
+    details = {}
+    for hs in hotspots:
+        slug = hs["slug"]
+        rel = f"details/{slug}"
+        folder = os.path.join(out, "details", slug)
+        images = []
+        for cam in (c for c in cams if c["hotspot"] == slug):
+            name = f"closeup-{cam['index']}"
+            path = os.path.join(folder, f"{name}.webp")
+            if render:
+                os.makedirs(folder, exist_ok=True)
+                print(f"Rendering close-up {slug}/{name}")
+                render_camera(scene, cam, folder, scale, filename=name, fmt="WEBP")
+            if os.path.exists(path):
+                images.append(f"{rel}/{name}.webp")
+        detail = {"images": images}
+        model_name = hs.get("model")
+        if model_name:
+            obj = bpy.data.objects.get(model_name)
+            if obj is None:
+                print(f"WARNING: hotspot {slug}: no object called {model_name!r}")
+            else:
+                os.makedirs(folder, exist_ok=True)
+                export_model(obj, os.path.join(folder, "model.glb"))
+                detail["model"] = f"{rel}/model.glb"
+        if images or "model" in detail:
+            details[slug] = detail
+    return details
+
+
 def main():
     argv = sys.argv[sys.argv.index("--") + 1:] if "--" in sys.argv else []
     p = argparse.ArgumentParser()
@@ -94,6 +159,8 @@ def main():
     p.add_argument("--samples", type=int, default=64)
     p.add_argument("--scale", type=int, default=100)
     p.add_argument("--only", default="", help="comma list of viewpoint slugs to render (plan is skipped)")
+    p.add_argument("--only-details", action="store_true",
+                   help="re-export close-ups and models (and space.json) without rendering panoramas")
     a = p.parse_args(argv)
 
     scene = bpy.context.scene
@@ -155,6 +222,15 @@ def main():
                 entry["arrive"] = hs["arrive"]  # viewpoint slug to land at in the target space
         data["hotspots"].append(entry)
 
+    if not a.no_render:
+        configure_cycles(scene, a.samples)
+    # --only re-renders a few panoramas: keep the existing close-ups
+    render_details = not a.no_render and (a.only_details or not a.only)
+    details = export_details(scene, hotspots, out, render=render_details, scale=a.scale)
+    for entry in data["hotspots"]:
+        if entry["slug"] in details:
+            entry["detail"] = details[entry["slug"]]
+
     with open(os.path.join(out, "space.json"), "w") as fh:
         json.dump(data, fh, indent=2)
     print(f"Wrote {os.path.join(out, 'space.json')}")
@@ -172,9 +248,8 @@ def main():
     with open(index_path, "w") as fh:
         json.dump(index, fh, indent=2)
 
-    if a.no_render:
+    if a.no_render or a.only_details:
         return
-    configure_cycles(scene, a.samples)
     only = [s for s in a.only.split(",") if s]
     if not only:
         render_camera(scene, plan, out, filename="plan", fmt="WEBP")
