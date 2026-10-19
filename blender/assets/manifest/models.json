@@ -1,0 +1,18 @@
+{
+  "lightbulb_01": {
+    "kind": "model",
+    "title": "Light Bulb 01",
+    "source": "Poly Haven",
+    "page": "https://polyhaven.com/a/lightbulb_01",
+    "author": "Josh Dean",
+    "license": "CC0",
+    "files": [
+      {"url": "https://dl.polyhaven.org/file/ph-assets/Models/gltf/1k/lightbulb_01/lightbulb_01_1k.gltf", "name": "lightbulb_01_1k.gltf"},
+      {"url": "https://dl.polyhaven.org/file/ph-assets/Models/gltf/4k/lightbulb_01/lightbulb_01.bin", "name": "lightbulb_01.bin"},
+      {"url": "https://dl.polyhaven.org/file/ph-assets/Models/jpg/1k/lightbulb_01/lightbulb_01_diff_1k.jpg", "name": "textures/lightbulb_01_diff_1k.jpg"},
+      {"url": "https://dl.polyhaven.org/file/ph-assets/Models/jpg/1k/lightbulb_01/lightbulb_01_nor_gl_1k.jpg", "name": "textures/lightbulb_01_nor_gl_1k.jpg"},
+      {"url": "https://dl.polyhaven.org/file/ph-assets/Models/jpg/1k/lightbulb_01/lightbulb_01_arm_1k.jpg", "name": "textures/lightbulb_01_arm_1k.jpg"},
+      {"url": "https://dl.polyhaven.org/file/ph-assets/Models/jpg/1k/lightbulb_01/lightbulb_01_emissive_1k.jpg", "name": "textures/lightbulb_01_emissive_1k.jpg"}
+    ]
+  }
+}

@@ -21,7 +21,7 @@ import random
 import bpy
 from mathutils import Matrix, Vector
 
-from lib import architecture, desk, environment, furniture as f, hero, materials, tour
+from lib import architecture, desk, environment, furniture as f, hero, imported, materials, tour
 from lib.geo import collection
 
 W, D = 6.4, 4.3
@@ -176,7 +176,7 @@ def build_desk(c):
     for i, ((x, y), rot, recipe) in enumerate(piles):
         desk.pile(mt, props, f"desk_pile_{i}", (DESK_X + x, y, top), recipe, rng, rot_z=rot)
 
-    f.office_chair(m, furn, "chair", (DESK_X - DESK_W / 2 - 0.4, WALL - 0.7, 0), rot_z=0.5)
+    imported.office_chair(m, furn, "chair", (DESK_X - DESK_W / 2 - 0.4, WALL - 0.7, 0), rot_z=0.5)
     north = desk.bw_print("hero_print_north", "print_autumn_meadow", "DSC_0415.jpg", 3200,
                           left=0.3, top=0.585, height=0.4, aspect=0.55 / 0.42, gamma=2.0)
     desk.framed_print(mt, props, "print_north", (DESK_X, WALL - 0.001, 1.85), (0.78, 0.62),
@@ -235,19 +235,18 @@ def build_clutter(c):
     f.cardboard_box(m, props, "box_1", (cx + 0.45, cy - 0.1, 0), (0.6, 0.45, 0.45), rot_z=0.1)
     f.black_box(m, props, "case_stack", (cx + 0.55, cy + 0.35, 0), (0.4, 0.3, 0.55))
     f.black_box(m, props, "floor_pile", (cx - 0.3, cy - 0.25, 0), (0.7, 0.45, 0.22), rot_z=0.2)
-    f.bin_basket(m, props, "bin", (cx - 0.35, cy + 0.4, 0))
+    imported.mesh_basket(m, props, "bin", (cx - 0.35, cy + 0.4, 0))
     f.flight_case(m, props, "camera_case", (cx - 0.1, cy - 0.45, 0), rot_z=-0.2)
     hero.camera(props, "camera", CAMERA_LOC, rot_z=0.3)
 
     nx, ny = NE_PILE
     f.monitor(m, props, "spare_display", (nx + 0.2, ny + 0.15, 0), rot_z=0.4)
-    f.bin_basket(m, props, "white_drum", (nx - 0.35, ny + 0.3, 0))
-    props.objects["white_drum"].scale = (1.0, 1.0, 1.4)
+    imported.white_drum(m, props, "white_drum", (nx - 0.35, ny + 0.3, 0))
     f.black_box(m, props, "ne_pile", (nx - 0.1, ny - 0.3, 0), (0.55, 0.4, 0.3), rot_z=0.15)
 
 
 def build_lamp(c):
-    f.floor_lamp(c.m, c.furn, "floor_lamp", (*LAMP, 0))
+    imported.floor_lamp(c.m, c.furn, "floor_lamp", (*LAMP, 0))
 
 
 def build_tour(c):
