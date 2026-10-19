@@ -49,7 +49,11 @@ CONSOLE_Y = 0.4
 def build():
     m = materials.library()
     architecture.Room(SPEC, m).build()
-    environment.build_daylight(sun_azimuth=75, sun_elevation=25, mirror=True)  # same morning as the Jobs Room
+    environment.build_daylight(sun_azimuth=75, sun_elevation=25, mirror=True,  # same morning as the Jobs Room
+                               view="pretoria_gardens", view_strength=0.75)
+    t = SPEC["wall_thickness"]
+    environment.build_garden(m, (-W / 2 - t, -D / 2 - t, W / 2 + t, D / 2 + t), sides="S",
+                             sun_azimuth=75, sun_elevation=25)
     bpy.context.scene.view_settings.exposure = 6.0
 
     furn = collection("Furniture")

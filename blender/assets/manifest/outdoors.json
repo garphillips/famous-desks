@@ -1,0 +1,98 @@
+{
+  "ph_jacaranda_tree": {
+    "kind": "model",
+    "title": "Jacaranda Tree",
+    "source": "Poly Haven",
+    "page": "https://polyhaven.com/a/jacaranda_tree",
+    "author": "Rob Tuytel, Rico Cilliers",
+    "license": "CC0",
+    "files": [
+      {"url": "https://dl.polyhaven.org/file/ph-assets/Models/gltf/1k/jacaranda_tree/jacaranda_tree_1k.gltf", "name": "jacaranda_tree_1k.gltf"},
+      {"url": "https://dl.polyhaven.org/file/ph-assets/Models/jpg/1k/jacaranda_tree/jacaranda_tree_branches_nor_gl_1k.jpg", "name": "textures/jacaranda_tree_branches_nor_gl_1k.jpg"},
+      {"url": "https://dl.polyhaven.org/file/ph-assets/Models/jpg/1k/jacaranda_tree/jacaranda_tree_branches_diff_1k.jpg", "name": "textures/jacaranda_tree_branches_diff_1k.jpg"},
+      {"url": "https://dl.polyhaven.org/file/ph-assets/Models/jpg/1k/jacaranda_tree/jacaranda_tree_branches_arm_1k.jpg", "name": "textures/jacaranda_tree_branches_arm_1k.jpg"},
+      {"url": "https://dl.polyhaven.org/file/ph-assets/Models/jpg/1k/jacaranda_tree/jacaranda_tree_trunk_nor_gl_1k.jpg", "name": "textures/jacaranda_tree_trunk_nor_gl_1k.jpg"},
+      {"url": "https://dl.polyhaven.org/file/ph-assets/Models/jpg/1k/jacaranda_tree/jacaranda_tree_trunk_diff_1k.jpg", "name": "textures/jacaranda_tree_trunk_diff_1k.jpg"},
+      {"url": "https://dl.polyhaven.org/file/ph-assets/Models/jpg/1k/jacaranda_tree/jacaranda_tree_trunk_arm_1k.jpg", "name": "textures/jacaranda_tree_trunk_arm_1k.jpg"},
+      {"url": "https://dl.polyhaven.org/file/ph-assets/Models/jpg/1k/jacaranda_tree/jacaranda_tree_leaves_nor_gl_1k.jpg", "name": "textures/jacaranda_tree_leaves_nor_gl_1k.jpg"},
+      {"url": "https://dl.polyhaven.org/file/ph-assets/Models/jpg/1k/jacaranda_tree/jacaranda_tree_leaves_diff_1k.jpg", "name": "textures/jacaranda_tree_leaves_diff_1k.jpg"},
+      {"url": "https://dl.polyhaven.org/file/ph-assets/Models/jpg/1k/jacaranda_tree/jacaranda_tree_leaves_arm_1k.jpg", "name": "textures/jacaranda_tree_leaves_arm_1k.jpg"},
+      {"url": "https://dl.polyhaven.org/file/ph-assets/Models/gltf/8k/jacaranda_tree/jacaranda_tree.bin", "name": "jacaranda_tree.bin"}
+    ]
+  },
+  "ph_island_tree_01": {
+    "kind": "model",
+    "title": "Island Tree 01",
+    "source": "Poly Haven",
+    "page": "https://polyhaven.com/a/island_tree_01",
+    "author": "Rob Tuytel, Rico Cilliers",
+    "license": "CC0",
+    "files": [
+      {"url": "https://dl.polyhaven.org/file/ph-assets/Models/gltf/1k/island_tree_01/island_tree_01_1k.gltf", "name": "island_tree_01_1k.gltf"},
+      {"url": "https://dl.polyhaven.org/file/ph-assets/Models/jpg/1k/island_tree_01/island_tree_01_nor_gl_1k.jpg", "name": "textures/island_tree_01_nor_gl_1k.jpg"},
+      {"url": "https://dl.polyhaven.org/file/ph-assets/Models/jpg/1k/island_tree_01/island_tree_01_diff_1k.jpg", "name": "textures/island_tree_01_diff_1k.jpg"},
+      {"url": "https://dl.polyhaven.org/file/ph-assets/Models/jpg/1k/island_tree_01/island_tree_01_arm_1k.jpg", "name": "textures/island_tree_01_arm_1k.jpg"},
+      {"url": "https://dl.polyhaven.org/file/ph-assets/Models/jpg/1k/island_tree_01/island_tree_01_leaves_nor_gl_1k.jpg", "name": "textures/island_tree_01_leaves_nor_gl_1k.jpg"},
+      {"url": "https://dl.polyhaven.org/file/ph-assets/Models/jpg/1k/island_tree_01/island_tree_01_leaves_diff_1k.jpg", "name": "textures/island_tree_01_leaves_diff_1k.jpg"},
+      {"url": "https://dl.polyhaven.org/file/ph-assets/Models/jpg/1k/island_tree_01/island_tree_01_leaves_arm_1k.jpg", "name": "textures/island_tree_01_leaves_arm_1k.jpg"},
+      {"url": "https://dl.polyhaven.org/file/ph-assets/Models/jpg/1k/island_tree_01/island_tree_01_branches_nor_gl_1k.jpg", "name": "textures/island_tree_01_branches_nor_gl_1k.jpg"},
+      {"url": "https://dl.polyhaven.org/file/ph-assets/Models/jpg/1k/island_tree_01/island_tree_01_branches_diff_1k.jpg", "name": "textures/island_tree_01_branches_diff_1k.jpg"},
+      {"url": "https://dl.polyhaven.org/file/ph-assets/Models/jpg/1k/island_tree_01/island_tree_01_branches_arm_1k.jpg", "name": "textures/island_tree_01_branches_arm_1k.jpg"},
+      {"url": "https://dl.polyhaven.org/file/ph-assets/Models/gltf/8k/island_tree_01/island_tree_01.bin", "name": "island_tree_01.bin"}
+    ]
+  },
+  "ph_tree_small_02": {
+    "kind": "model",
+    "title": "Tree Small 02",
+    "source": "Poly Haven",
+    "page": "https://polyhaven.com/a/tree_small_02",
+    "author": "Rico Cilliers",
+    "license": "CC0",
+    "files": [
+      {"url": "https://dl.polyhaven.org/file/ph-assets/Models/gltf/1k/tree_small_02/tree_small_02_1k.gltf", "name": "tree_small_02_1k.gltf"},
+      {"url": "https://dl.polyhaven.org/file/ph-assets/Models/jpg/1k/tree_small_02/tree_small_02_branch_nor_gl_1k.jpg", "name": "textures/tree_small_02_branch_nor_gl_1k.jpg"},
+      {"url": "https://dl.polyhaven.org/file/ph-assets/Models/jpg/1k/tree_small_02/tree_small_02_branch_diff_1k.jpg", "name": "textures/tree_small_02_branch_diff_1k.jpg"},
+      {"url": "https://dl.polyhaven.org/file/ph-assets/Models/jpg/1k/tree_small_02/tree_small_02_branch_arm_1k.jpg", "name": "textures/tree_small_02_branch_arm_1k.jpg"},
+      {"url": "https://dl.polyhaven.org/file/ph-assets/Models/jpg/1k/tree_small_02/tree_small_02_leaves_nor_gl_1k.jpg", "name": "textures/tree_small_02_leaves_nor_gl_1k.jpg"},
+      {"url": "https://dl.polyhaven.org/file/ph-assets/Models/jpg/1k/tree_small_02/tree_small_02_leaves_diff_1k.jpg", "name": "textures/tree_small_02_leaves_diff_1k.jpg"},
+      {"url": "https://dl.polyhaven.org/file/ph-assets/Models/jpg/1k/tree_small_02/tree_small_02_leaves_arm_1k.jpg", "name": "textures/tree_small_02_leaves_arm_1k.jpg"},
+      {"url": "https://dl.polyhaven.org/file/ph-assets/Models/jpg/1k/tree_small_02/tree_small_02_nor_gl_1k.jpg", "name": "textures/tree_small_02_nor_gl_1k.jpg"},
+      {"url": "https://dl.polyhaven.org/file/ph-assets/Models/jpg/1k/tree_small_02/tree_small_02_diff_1k.jpg", "name": "textures/tree_small_02_diff_1k.jpg"},
+      {"url": "https://dl.polyhaven.org/file/ph-assets/Models/jpg/1k/tree_small_02/tree_small_02_arm_1k.jpg", "name": "textures/tree_small_02_arm_1k.jpg"},
+      {"url": "https://dl.polyhaven.org/file/ph-assets/Models/gltf/8k/tree_small_02/tree_small_02.bin", "name": "tree_small_02.bin"}
+    ]
+  },
+  "hdri_pretoria_gardens": {
+    "kind": "hdri",
+    "title": "Pretoria Gardens",
+    "source": "Poly Haven",
+    "page": "https://polyhaven.com/a/pretoria_gardens",
+    "author": "Dimitrios Savva, Jarod Guest",
+    "license": "CC0",
+    "files": [
+      {"url": "https://dl.polyhaven.org/file/ph-assets/HDRIs/exr/8k/pretoria_gardens_8k.exr", "name": "pretoria_gardens_8k.exr"}
+    ]
+  },
+  "acg_LeafSet024": {
+    "kind": "texture",
+    "title": "Leaf Set 024",
+    "source": "ambientCG",
+    "page": "https://ambientcg.com/view?id=LeafSet024",
+    "author": "ambientCG (Lennart Demes)",
+    "license": "CC0",
+    "files": [
+      {"url": "https://ambientcg.com/get?file=LeafSet024_2K-JPG.zip", "name": "LeafSet024_2K-JPG.zip"}
+    ]
+  },
+  "acg_Grass004": {
+    "kind": "texture",
+    "title": "Grass 004",
+    "source": "ambientCG",
+    "page": "https://ambientcg.com/view?id=Grass004",
+    "author": "ambientCG (Lennart Demes)",
+    "license": "CC0",
+    "files": [
+      {"url": "https://ambientcg.com/get?file=Grass004_2K-JPG.zip", "name": "Grass004_2K-JPG.zip"}
+    ]
+  }
+}
