@@ -127,15 +127,21 @@ def crop(arr, box):
 
 
 def resize(arr, w, h):
-    """Box-filtered resize (good enough for thumbnails and downscales)."""
+    """Box-filtered resize (every output pixel averages at least one source pixel)."""
     import numpy as np
 
     sh, sw = arr.shape[:2]
-    ys = np.linspace(0, sh, h + 1).astype(int)
-    xs = np.linspace(0, sw, w + 1).astype(int)
+
+    def bins(n_src, n):
+        lo = np.minimum(np.floor(np.linspace(0, n_src, n + 1)[:-1]).astype(int), n_src - 1)
+        hi = np.maximum(np.floor(np.linspace(0, n_src, n + 1)[1:]).astype(int), lo + 1)
+        return lo, hi
+
+    y0, y1 = bins(sh, h)
+    x0, x1 = bins(sw, w)
     cs = np.cumsum(np.cumsum(np.pad(arr.astype(np.float64), ((1, 0), (1, 0), (0, 0))), 0), 1)
-    tot = cs[ys[1:]][:, xs[1:]] - cs[ys[:-1]][:, xs[1:]] - cs[ys[1:]][:, xs[:-1]] + cs[ys[:-1]][:, xs[:-1]]
-    area = ((ys[1:] - ys[:-1])[:, None] * (xs[1:] - xs[:-1])[None, :]).clip(1)[..., None]
+    tot = cs[y1][:, x1] - cs[y0][:, x1] - cs[y1][:, x0] + cs[y0][:, x0]
+    area = ((y1 - y0)[:, None] * (x1 - x0)[None, :])[..., None]
     return (tot / area).astype(np.float32)
 
 
@@ -192,7 +198,7 @@ def _desktop(name="hero_desktop", w=960, h=600):
             return
         sh, sw = src.shape[:2]
         cw = rng.uniform(0.12, 0.3)
-        cx, cy = rng.uniform(0, 1 - cw), rng.uniform(0.25, 0.55)
+        cx, cy = rng.uniform(0, 1 - cw), rng.uniform(0.4, 0.62)
         part = crop(src, (cx, cy, cx + cw, min(1.0, cy + cw * sw / sh * th / tw)))
         canvas[int(y0 * h):int(y0 * h) + th, int(x0 * w):int(x0 * w) + tw] = resize(part, tw, th)
 

@@ -6,7 +6,12 @@
     "page": "https://polyhaven.com/a/misty_pines",
     "author": "Greg Zaal",
     "license": "CC0",
-    "files": [{"url": "https://dl.polyhaven.org/file/ph-assets/HDRIs/extra/Tonemapped%20JPG/misty_pines.jpg", "name": "misty_pines.jpg"}]
+    "files": [
+      {
+        "url": "https://dl.polyhaven.org/file/ph-assets/HDRIs/extra/Tonemapped%20JPG/misty_pines.jpg",
+        "name": "misty_pines.jpg"
+      }
+    ]
   },
   "print_autumn_meadow": {
     "kind": "texture",
@@ -15,6 +20,71 @@
     "page": "https://polyhaven.com/a/autumn_meadow",
     "author": "Sergej Majboroda",
     "license": "CC0",
-    "files": [{"url": "https://dl.polyhaven.org/file/ph-assets/HDRIs/extra/Backplates/autumn_meadow/jpg_plain/DSC_0415.jpg", "name": "DSC_0415.jpg"}]
+    "files": [
+      {
+        "url": "https://dl.polyhaven.org/file/ph-assets/HDRIs/extra/Backplates/autumn_meadow/jpg_plain/DSC_0415.jpg",
+        "name": "DSC_0415.jpg"
+      }
+    ]
+  },
+  "vintage_stapler": {
+    "kind": "model",
+    "title": "Vintage Stapler",
+    "source": "Poly Haven",
+    "page": "https://polyhaven.com/a/vintage_stapler",
+    "author": "Mateusz Sadek",
+    "license": "CC0",
+    "files": [
+      {
+        "url": "https://dl.polyhaven.org/file/ph-assets/Models/gltf/1k/vintage_stapler/vintage_stapler_1k.gltf",
+        "name": "vintage_stapler_1k.gltf"
+      },
+      {
+        "url": "https://dl.polyhaven.org/file/ph-assets/Models/jpg/1k/vintage_stapler/vintage_stapler_nor_gl_1k.jpg",
+        "name": "textures/vintage_stapler_nor_gl_1k.jpg"
+      },
+      {
+        "url": "https://dl.polyhaven.org/file/ph-assets/Models/jpg/1k/vintage_stapler/vintage_stapler_diff_1k.jpg",
+        "name": "textures/vintage_stapler_diff_1k.jpg"
+      },
+      {
+        "url": "https://dl.polyhaven.org/file/ph-assets/Models/jpg/1k/vintage_stapler/vintage_stapler_arm_1k.jpg",
+        "name": "textures/vintage_stapler_arm_1k.jpg"
+      },
+      {
+        "url": "https://dl.polyhaven.org/file/ph-assets/Models/gltf/4k/vintage_stapler/vintage_stapler.bin",
+        "name": "vintage_stapler.bin"
+      }
+    ]
+  },
+  "stationery_supplies": {
+    "kind": "model",
+    "title": "Stationery Supplies",
+    "source": "Poly Haven",
+    "page": "https://polyhaven.com/a/stationery_supplies",
+    "author": "Mateusz Sadek",
+    "license": "CC0",
+    "files": [
+      {
+        "url": "https://dl.polyhaven.org/file/ph-assets/Models/gltf/1k/stationery_supplies/stationery_supplies_1k.gltf",
+        "name": "stationery_supplies_1k.gltf"
+      },
+      {
+        "url": "https://dl.polyhaven.org/file/ph-assets/Models/jpg/1k/stationery_supplies/stationery_supplies_nor_gl_1k.jpg",
+        "name": "textures/stationery_supplies_nor_gl_1k.jpg"
+      },
+      {
+        "url": "https://dl.polyhaven.org/file/ph-assets/Models/jpg/1k/stationery_supplies/stationery_supplies_diff_1k.jpg",
+        "name": "textures/stationery_supplies_diff_1k.jpg"
+      },
+      {
+        "url": "https://dl.polyhaven.org/file/ph-assets/Models/jpg/1k/stationery_supplies/stationery_supplies_arm_1k.jpg",
+        "name": "textures/stationery_supplies_arm_1k.jpg"
+      },
+      {
+        "url": "https://dl.polyhaven.org/file/ph-assets/Models/gltf/4k/stationery_supplies/stationery_supplies.bin",
+        "name": "stationery_supplies.bin"
+      }
+    ]
   }
 }

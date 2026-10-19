@@ -10,7 +10,6 @@ faces -Y in local space, and ``rot_z`` turns it about Z.
 """
 
 import math
-import random
 
 import bpy
 from mathutils import Matrix, Vector
@@ -40,35 +39,60 @@ def _perforated(name):
     return mat
 
 
-def _covers(name):
-    """Magazine and catalogue covers: a colour per island, photo-like blotches, lines of type."""
+COVER_TILE = (0.22, 0.28)  # metres covered by one tile of the cover atlas
+
+
+def _cover_atlas(name="hero_cover_atlas", cols=4, rows=3, tw=220, th=280):
+    """Generated magazine and catalogue covers: a colour field, a photo (crops of
+    the CC0 prints' sources), a masthead band and blocks of grey 'type'. No real text."""
+    import numpy as np
+
+    img = bpy.data.images.get(name)
+    if img:
+        return img
+    rng = np.random.default_rng(9)
+    photos = [hero.photo_pixels("print_autumn_meadow", "DSC_0415.jpg", 1200),
+              hero.photo_pixels("print_misty_pines", "misty_pines.jpg", 1600)]
+    palette = np.array([(0.85, 0.84, 0.8), (0.62, 0.08, 0.06), (0.03, 0.03, 0.03), (0.12, 0.2, 0.42),
+                        (0.92, 0.92, 0.9), (0.8, 0.6, 0.12), (0.3, 0.36, 0.33), (0.9, 0.9, 0.88)], np.float32)
+    atlas = np.zeros((rows * th, cols * tw, 3), np.float32)
+    for r in range(rows):
+        for c in range(cols):
+            tile = np.empty((th, tw, 3), np.float32)
+            tile[:] = palette[rng.integers(len(palette))]
+            src = photos[rng.integers(2)]
+            top = int(th * rng.uniform(0.15, 0.3))
+            bottom = int(th * rng.uniform(0.75, 1.0))
+            inset = int(tw * rng.choice((0.0, 0.08)))
+            if src is not None:
+                ph, pw = bottom - top, tw - 2 * inset
+                cw = rng.uniform(0.15, 0.35)
+                cx, cy = rng.uniform(0, 1 - cw), rng.uniform(0.35, 0.6)
+                part = hero.crop(src, (cx, cy, cx + cw, cy + cw * src.shape[1] / src.shape[0] * ph / pw))
+                tile[top:bottom, inset:tw - inset] = hero.resize(part, pw, ph)
+            band = palette[rng.integers(len(palette))]
+            tile[int(th * 0.03):int(th * 0.12), int(tw * 0.06):int(tw * rng.uniform(0.6, 0.94))] = band
+            for k in range(rng.integers(3, 9)):
+                y = int(th * rng.uniform(0.3, 0.92))
+                x0 = int(tw * rng.uniform(0.05, 0.4))
+                tile[y:y + 2, x0:x0 + int(tw * rng.uniform(0.15, 0.45))] = 0.95 if tile[y, x0].mean() < 0.5 else 0.1
+            atlas[r * th:(r + 1) * th, c * tw:(c + 1) * tw] = tile
+    return hero.packed_image(name, atlas)
+
+
+def _covers(name, cols=4, rows=3):
+    """Magazine covers: the generated atlas projected from above, tiled so each
+    cover (and each pile) lands on a different part of it."""
     mat, g, bsdf = lib._new(name, (0.5, 0.3, 0.3))
     _, rnd = g.attr("island_rand")
-    p = g.vmath("ADD", g.obj_coords(), g.vec(g.math("MULTIPLY", rnd, 13.0), g.math("MULTIPLY", rnd, 7.0), 0.0))
-    ramp = g.node("ShaderNodeValToRGB")
-    cr = ramp.color_ramp
-    cr.interpolation = "CONSTANT"
-    palette = [(0.0, (0.82, 0.81, 0.77)), (0.18, (0.50, 0.05, 0.04)), (0.32, (0.015, 0.015, 0.015)),
-               (0.45, (0.08, 0.15, 0.35)), (0.58, (0.85, 0.85, 0.83)), (0.72, (0.70, 0.50, 0.10)),
-               (0.86, (0.22, 0.27, 0.25))]
-    cr.elements[0].color = (*palette[0][1], 1)
-    cr.elements[1].position = palette[1][0]
-    cr.elements[1].color = (*palette[1][1], 1)
-    for pos, c in palette[2:]:
-        cr.elements.new(pos).color = (*c, 1)
-    g.set(ramp.inputs["Fac"], rnd)
-    tex = g.node("ShaderNodeTexNoise")
-    g.set(tex.inputs["Vector"], p)
-    g.set(tex.inputs["Scale"], 22.0)
-    g.set(tex.inputs["Detail"], 8.0)
-    photo = g.hsv(tex.outputs["Color"], 0.5, 0.7, 0.6)
-    blob = g.map(g.noise(p, 5.0, 2.0, 0.5), 0.5, 0.53)
-    col = g.mix(blob, ramp.outputs["Color"], photo)
-    _, yy, _ = g.sep(p)
-    lines = g.map(g.math("SINE", g.math("MULTIPLY", yy, 700.0)), 0.2, 0.6)
-    tmask = g.map(g.noise(g.scale(p, (2.0, 25.0, 2.0)), 4.0, 2.0, 0.5), 0.55, 0.6)
-    col = g.mix(g.math("MULTIPLY", g.math("MULTIPLY", lines, tmask), 0.85), col, (0.92, 0.92, 0.9))
-    lib._principled(g, bsdf, color=col, rough=0.3, coat=0.25, coat_rough=0.1)
+    x, y, _ = g.sep(g.obj_coords())
+    u = g.math("ADD", g.math("DIVIDE", x, cols * COVER_TILE[0]), g.math("MULTIPLY", rnd, 3.0))
+    v = g.math("ADD", g.math("DIVIDE", y, rows * COVER_TILE[1]), g.math("MULTIPLY", rnd, 5.0))
+    tex = g.node("ShaderNodeTexImage")
+    tex.image = _cover_atlas()
+    tex.interpolation = "Cubic"
+    g.set(tex.inputs["Vector"], g.vec(u, v, 0.0))
+    lib._principled(g, bsdf, color=tex.outputs["Color"], rough=0.3, coat=0.25, coat_rough=0.1)
     return mat
 
 
@@ -129,7 +153,7 @@ def materials(m):
     h = hero.materials()
     return {
         **h,
-        "oak": lib.wood("hero_desk_oak", (0.60, 0.29, 0.09), (0.28, 0.11, 0.03), 0.3, 120.0, coat=0.45),
+        "oak": lib.wood("hero_desk_oak", (0.60, 0.29, 0.09), (0.28, 0.11, 0.03), 0.3, 70.0, coat=0.45),
         "paper": m["paper"],
         "cardboard": m["cardboard"],
         "plastic_white": m["plastic_white"],
@@ -312,18 +336,25 @@ def desk_lamp(mt, col, name, loc, rot_z=0.0):
     b = HeroBuilder()
     blk, gloss = mt["metal_black"], mt["gloss_black"]
     b.cyl(0.038, 0.012, (0, 0, 0.006), gloss, bevel=0.003, segments=40)
-    pivot = Vector((0, 0, 0.17))
+    pivot = Vector((0, 0, 0.15))
     for sx in (-1, 1):
-        path = smooth_path([(sx * 0.024, 0, 0.01), (sx * 0.022, 0, 0.06), (sx * 0.012, 0, 0.13), pivot], 6)
+        path = smooth_path([(sx * 0.026, 0, 0.01), (sx * 0.024, 0, 0.05), (sx * 0.01, 0, 0.12), pivot], 6)
         b.tube(path, 0.0035, blk, sides=10)
-    b.cyl(0.007, 0.024, pivot, blk, rot=(math.pi / 2, 0, 0), segments=20, bevel=0.001)
-    head = Vector((0.2, 0, 0.215))
-    for dz, r in ((0.0, 0.0028), (0.022, 0.0022)):
-        b.rod((-0.21, 0, pivot.z - 0.012 + dz), (head.x, 0, head.z + dz - 0.01), r, blk, segments=10)
-    b.cyl(0.013, 0.05, (-0.215, 0, pivot.z - 0.012), blk, bevel=0.003, segments=24)
-    b.rod((head.x, 0, head.z + 0.012), (head.x, 0, head.z - 0.012), 0.004, blk, segments=10)
-    b.sphere(0.034, head - Vector((0, 0, 0.03)), blk, scale=(1, 1, 0.92))
-    b.cyl(0.02, 0.002, head - Vector((0, 0, 0.0615)), mt["marking"], segments=32)
+    b.cyl(0.0075, 0.026, pivot, blk, rot=(math.pi / 2, 0, 0), segments=20, bevel=0.001)
+    # parallel arms through the pivot, joined by short links at each end
+    back, front, slope, gap = -0.17, 0.21, 0.12, 0.024
+    for dz, r in ((0.0, 0.003), (gap, 0.0022)):
+        x0 = back if dz == 0 else back + 0.02
+        b.rod((x0, 0, pivot.z + slope * x0 + dz), (front, 0, pivot.z + slope * front + dz), r, blk, segments=10)
+    for x in (back + 0.02, front):
+        z = pivot.z + slope * x
+        b.rod((x, 0, z - 0.004), (x, 0, z + gap + 0.004), 0.0035, blk, segments=10)
+    zb = pivot.z + slope * back
+    b.cyl(0.014, 0.045, (back - 0.005, 0, zb - 0.02), blk, bevel=0.003, segments=24)
+    head = Vector((front, 0, pivot.z + slope * front - 0.035))
+    b.rod((front, 0, head.z + 0.035), (front, 0, head.z + 0.02), 0.004, blk, segments=10)
+    b.sphere(0.034, head, blk, scale=(1, 1, 0.92))
+    b.cyl(0.02, 0.002, head - Vector((0, 0, 0.0315)), mt["marking"], segments=32)
     return b.build(name, col, loc, rot_z)
 
 
@@ -493,7 +524,7 @@ def jewel_cases(b, mt, rng, centre, z, n):
 def envelope(b, mt, rng, centre, z, rot, size=(0.229, 0.162)):
     mat = rng.choice((mt["paper"], mt["kraft"]))
     b.sheet(size, (centre[0], centre[1], z + 0.0008), mat, rot=(0, 0, rot), lift=_curl(rng, 0.006), nx=6, ny=4)
-    b.sheet((size[0] - 0.004, size[1] * 0.45), (centre[0] + math.sin(-rot) * 0.0, centre[1], z + 0.0016), mat,
+    b.sheet((size[0] - 0.004, size[1] * 0.45), (centre[0], centre[1], z + 0.0016), mat,
             rot=(0, 0, rot), nx=2, ny=2)
     return z + 0.002
 

@@ -170,14 +170,17 @@ def build_desk(c):
         ((0.21, 1.0), -0.15, [("catalogues", 3), ("papers", 0.06), ("mags", 2), ("envelopes", 1), ("mags", 1)]),
         ((-0.1, 0.98), 0.35, [("papers", 0.035), ("envelopes", 2)]),
         ((0.05, 0.72), -0.3, [("mags", 4), ("cds", 2), ("notebook", 0)]),
-        ((0.26, 0.52), 0.1, [("papers", 0.09), ("catalogues", 1), ("cds", 2)]),
+        ((0.29, 0.55), 0.1, [("papers", 0.09), ("catalogues", 1), ("cds", 2)]),
         ((-0.25, 0.47), -0.5, [("notebook", 1), ("envelopes", 1)]),
     ]
     for i, ((x, y), rot, recipe) in enumerate(piles):
         desk.pile(mt, props, f"desk_pile_{i}", (DESK_X + x, y, top), recipe, rng, rot_z=rot)
+    imported.load("vintage_stapler", "vintage_stapler_1k.gltf", props, "stapler", (DESK_X - 0.03, 1.24, top), rot_z=0.5)
+    imported.load("stationery_supplies", "stationery_supplies_1k.gltf", props, "stationery",
+                  (DESK_X - 0.01, 0.43, top), rot_z=0.08)
 
     imported.office_chair(m, furn, "chair", (DESK_X - DESK_W / 2 - 0.4, WALL - 0.7, 0), rot_z=0.5)
-    north = desk.bw_print("hero_print_north", "print_autumn_meadow", "DSC_0415.jpg", 3200,
+    north = desk.bw_print("hero_print_north", "print_autumn_meadow", "DSC_0415.jpg", 4928,
                           left=0.3, top=0.585, height=0.4, aspect=0.55 / 0.42, gamma=2.0)
     desk.framed_print(mt, props, "print_north", (DESK_X, WALL - 0.001, 1.85), (0.78, 0.62),
                       desk._image_material("hero_print_north", north, 0.45), window=(0.56, 0.43))
