@@ -18,4 +18,4 @@ case "$1" in
 esac
 
 "$BLENDER" -b --factory-startup -P "$ROOT/blender/build.py" -- "$ROOM"
-"$BLENDER" -b "$ROOT/blender/build/$ROOM.blend" -P "$ROOT/blender/export.py" -- $EXPORT_ARGS
+"$ROOT/blender/blender.sh" -b "$ROOT/blender/build/$ROOM.blend" -P "$ROOT/blender/export.py" -- $EXPORT_ARGS

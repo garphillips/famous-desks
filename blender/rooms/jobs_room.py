@@ -20,7 +20,7 @@ import random
 
 import bpy
 
-from lib import architecture, furniture as f, hero, materials, tour
+from lib import architecture, environment, furniture as f, hero, materials, tour
 from lib.geo import collection
 
 W, D = 6.4, 4.3
@@ -78,50 +78,90 @@ SPEC = {
 }
 
 
+# Shared positions (sections and the tour markup both use these)
+WALL = D / 2  # north wall interior face
+DESK_W, DESK_LEN = 0.9, 1.8
+DISPLAY_LOC = (DESK_X - 0.05, WALL - 0.3, 0.74)
+SOUTH_PILE = to_m(876, 753)  # floor clutter south of the desk (south photo foreground)
+NE_PILE = to_m(1480, 273)  # between the desk and the north-east window
+LAMP = to_m(1310, 705)
+CAMERA_LOC = (SOUTH_PILE[0] - 0.1, SOUTH_PILE[1] - 0.45, 0.3)  # on the camera case
+TRIPOD_LOC = (SOUTH_PILE[0] + 0.15, SOUTH_PILE[1] + 0.1, 0)
+
+
+class Ctx:
+    """What every section needs: materials and the target collections."""
+
+    def __init__(self):
+        self.m = materials.library()
+        self.books = materials.book_materials()
+        self.furn = collection("Furniture")
+        self.props = collection("Props")
+
+
 def build():
-    m = materials.library()
-    books = materials.book_materials()
-    architecture.Room(SPEC, m).build()
-    architecture.build_outdoors(m)
+    c = Ctx()
+    architecture.Room(SPEC, c.m).build()
+    build_lighting(c)
+    build_bookshelf(c)
+    build_desk(c)
+    build_clutter(c)
+    build_lamp(c)
+    build_tour(c)
+
+
+# --- sections: each is owned by one area of work ------------------------------
+
+
+def build_lighting(c):
+    """Sky, sun, garden and exposure."""
+    environment.build_outdoors(c.m)
     sky = 0.1  # physical sky strength; sun lamp and exposure follow it
-    architecture.build_world(strength=sky, sun_azimuth=200, sun_elevation=35)
-    architecture.build_sun(azimuth_deg=200, elevation_deg=35, strength=architecture.SKY_SUN_RATIO * sky)
+    environment.build_world(strength=sky, sun_azimuth=200, sun_elevation=35)
+    environment.build_sun(azimuth_deg=200, elevation_deg=35, strength=environment.SKY_SUN_RATIO * sky)
     bpy.context.scene.view_settings.exposure = 3.4
     bpy.context.scene["lamp_glow"] = 1.0  # warm floor-lamp glow (materials.finish_scene)
 
-    furn = collection("Furniture")
-    props = collection("Props")
-    rng = random.Random(7)
 
-    # West wall bookshelf, front facing east
+def build_bookshelf(c):
+    """West wall bookshelf (front facing east), its books and what sits on top."""
+    m, furn, props = c.m, c.furn, c.props
     shelf_depth = 0.34
     bays = 3
     bay_w = (BOOKSHELF[1] - 0.025 * (bays + 1)) / bays
-    f.bookshelf(m, furn, books, "bookshelf", (-W / 2 + shelf_depth / 2, BOOKSHELF[0], 0),
+    f.bookshelf(m, furn, c.books, "bookshelf", (-W / 2 + shelf_depth / 2, BOOKSHELF[0], 0),
                 bays=[bay_w] * bays, shelves=[0.08, 0.46, 0.82, 1.16, 1.48, 1.80, 2.12],
                 depth=shelf_depth, rot_z=math.pi / 2, seed=3)
     f.black_box(m, props, "basket", (-W / 2 + 0.2, 1.4, 2.145), (0.3, 0.6, 0.32), mat="wicker")
     f.black_box(m, props, "shelf_top_boxes", (-W / 2 + 0.2, 0.2, 2.145), (0.25, 0.45, 0.12))
-    f.frame(m, props, "print_west", (-W / 2 + 0.001, -1.75, 1.45), (0.6, 0.8), rot_z=math.pi / 2)  # faces east, into the room
 
-    # The desk: short end against the north wall between the two windows.
-    # Display at the wall end facing into the room, angled towards the chair on
-    # the desk's west side (where the man sits in the south-facing photo).
-    desk_w, desk_len = 0.9, 1.8
-    wall = D / 2
-    desk_y = wall - desk_len / 2
-    f.table(m, furn, "desk", (DESK_X, desk_y, 0), (desk_w, desk_len, 0.74), top="oak", frame="oak")
-    hero.display(props, "display", (DESK_X - 0.05, wall - 0.3, 0.74), rot_z=-0.35, width=0.66, height=0.46)
-    f.black_box(m, props, "speaker", (DESK_X + 0.28, wall - 0.3, 0.74), (0.18, 0.2, 0.26))
-    f.black_box(m, props, "keyboard", (DESK_X - 0.25, wall - 0.5, 0.74), (0.42, 0.15, 0.03), rot_z=math.pi / 2 + 0.3)
-    f.tower(m, props, "mac_pro", (DESK_X - 0.2, wall - 0.45, 0), rot_z=math.pi / 2)
+
+def build_desk(c):
+    """The desk: short end against the north wall between the two windows.
+    Display at the wall end facing into the room, angled towards the chair on
+    the desk's west side (where the man sits in the south-facing photo). Also
+    the prints on the walls."""
+    m, furn, props = c.m, c.furn, c.props
+    rng = random.Random(7)
+    desk_y = WALL - DESK_LEN / 2
+    f.table(m, furn, "desk", (DESK_X, desk_y, 0), (DESK_W, DESK_LEN, 0.74), top="oak", frame="oak")
+    hero.display(props, "display", DISPLAY_LOC, rot_z=-0.35, width=0.66, height=0.46)
+    f.black_box(m, props, "speaker", (DESK_X + 0.28, WALL - 0.3, 0.74), (0.18, 0.2, 0.26))
+    f.black_box(m, props, "keyboard", (DESK_X - 0.25, WALL - 0.5, 0.74), (0.42, 0.15, 0.03), rot_z=math.pi / 2 + 0.3)
+    f.tower(m, props, "mac_pro", (DESK_X - 0.2, WALL - 0.45, 0), rot_z=math.pi / 2)
     for i, dy in enumerate([0.85, 1.15, 1.5]):
-        f.paper_stack(m, props, f"papers_{i}", (DESK_X + rng.uniform(-0.15, 0.15), wall - dy, 0.74),
+        f.paper_stack(m, props, f"papers_{i}", (DESK_X + rng.uniform(-0.15, 0.15), WALL - dy, 0.74),
                       rot_z=rng.uniform(-0.4, 0.4), size=(0.32, 0.24, rng.uniform(0.03, 0.12)), rng=rng)
-    f.office_chair(m, furn, "chair", (DESK_X - desk_w / 2 - 0.4, wall - 0.7, 0), rot_z=0.5)
-    f.frame(m, props, "print_north", (DESK_X, wall - 0.001, 1.85), (0.78, 0.62))
+    f.office_chair(m, furn, "chair", (DESK_X - DESK_W / 2 - 0.4, WALL - 0.7, 0), rot_z=0.5)
+    f.frame(m, props, "print_north", (DESK_X, WALL - 0.001, 1.85), (0.78, 0.62))
+    f.frame(m, props, "print_west", (-W / 2 + 0.001, -1.75, 1.45), (0.6, 0.8), rot_z=math.pi / 2)  # faces east
 
-    # Floor clutter: strip along the bookshelf
+
+def build_clutter(c):
+    """Floor clutter: along the bookshelf, south of the desk, and by the north-east window."""
+    m, props = c.m, c.props
+    rng = random.Random(11)
+
     sx, _ = to_m(275, 0)
     for i, py in enumerate([180, 380, 560, 760, 880]):
         _, y = to_m(0, py)
@@ -129,63 +169,64 @@ def build():
         f.black_box(m, props, f"shelf_pile_{i}", (sx + rng.uniform(-0.08, 0.08), y, 0), size,
                     rot_z=rng.uniform(-0.3, 0.3), mat=rng.choice(["plastic_black", "cardboard", "paper"]))
 
-    # Floor clutter: south of the desk (south photo foreground)
-    cx, cy = to_m(876, 753)
-    hero.tripod(props, "tripod", (cx + 0.15, cy + 0.1, 0))
+    cx, cy = SOUTH_PILE
+    hero.tripod(props, "tripod", TRIPOD_LOC)
     f.cardboard_box(m, props, "box_1", (cx + 0.45, cy - 0.1, 0), (0.6, 0.45, 0.45), rot_z=0.1)
     f.black_box(m, props, "case_stack", (cx + 0.55, cy + 0.35, 0), (0.4, 0.3, 0.55))
     f.black_box(m, props, "floor_pile", (cx - 0.3, cy - 0.25, 0), (0.7, 0.45, 0.22), rot_z=0.2)
     f.bin_basket(m, props, "bin", (cx - 0.35, cy + 0.4, 0))
     f.flight_case(m, props, "camera_case", (cx - 0.1, cy - 0.45, 0), rot_z=-0.2)
-    hero.camera(props, "camera", (cx - 0.1, cy - 0.45, 0.3), rot_z=0.3)
+    hero.camera(props, "camera", CAMERA_LOC, rot_z=0.3)
 
-    # Floor clutter: between the desk and the north-east window
-    nx, ny = to_m(1480, 273)
+    nx, ny = NE_PILE
     f.monitor(m, props, "spare_display", (nx + 0.2, ny + 0.15, 0), rot_z=0.4)
     f.bin_basket(m, props, "white_drum", (nx - 0.35, ny + 0.3, 0))
     props.objects["white_drum"].scale = (1.0, 1.0, 1.4)
     f.black_box(m, props, "ne_pile", (nx - 0.1, ny - 0.3, 0), (0.55, 0.4, 0.3), rot_z=0.15)
 
-    # Floor lamp
-    lx, ly = to_m(1310, 705)
-    f.floor_lamp(m, furn, "floor_lamp", (lx, ly, 0))
 
-    # Tour markup
-    tour.viewpoint("office", "Office", (0.35, -1.65), 0, look_at=(DESK_X, wall))
+def build_lamp(c):
+    f.floor_lamp(c.m, c.furn, "floor_lamp", (*LAMP, 0))
+
+
+def build_tour(c):
+    """Viewpoints, hotspots, close-up cameras and reference cameras."""
+    lx, ly = LAMP
+    tour.viewpoint("office", "Office", (0.35, -1.65), 0, look_at=(DESK_X, WALL))
     tour.viewpoint("bookshelf", "Bookshelf", (-1.25, 0.3), 1, look_at=(-W / 2, 0.3))
-    tour.viewpoint("desk", "Desk", (0.95, 0.55), 2, look_at=(DESK_X, wall))
+    tour.viewpoint("desk", "Desk", (0.95, 0.55), 2, look_at=(DESK_X, WALL))
     tour.viewpoint("window", "Window", (2.15, -1.05), 3, look_at=(W / 2, E_WINDOW[0]))
-    tour.viewpoint("entrance", "Entrance", (DOOR[0], -D / 2 + 0.6), 4, look_at=(DESK_X, wall))
+    tour.viewpoint("entrance", "Entrance", (DOOR[0], -D / 2 + 0.6), 4, look_at=(DESK_X, WALL))
 
     tour.hotspot("bookshelf", "Bookshelf", (-W / 2 + 0.2, BOOKSHELF[0], 1.65), icon="info",
                  summary="Explore the collection of books, cameras and creative tools.")
-    tour.hotspot("display", "The display", (DESK_X - 0.05, wall - 0.3, 1.3), model="display")
-    tour.hotspot("print", "The print", (DESK_X, wall - 0.05, 2.25), icon="info")
-    tour.hotspot("camera", "Camera", (cx - 0.1, cy - 0.45, 0.55), model="camera")
-    tour.hotspot("tripod", "Tripod", (cx + 0.15, cy + 0.1, 1.6), model="tripod")
+    tour.hotspot("display", "The display", (DISPLAY_LOC[0], DISPLAY_LOC[1], 1.3), model="display")
+    tour.hotspot("print", "The print", (DESK_X, WALL - 0.05, 2.25), icon="info")
+    tour.hotspot("camera", "Camera", (CAMERA_LOC[0], CAMERA_LOC[1], 0.55), model="camera")
+    tour.hotspot("tripod", "Tripod", (TRIPOD_LOC[0], TRIPOD_LOC[1], 1.6), model="tripod")
     tour.hotspot("east_window", "Garden window", (W / 2 - 0.1, E_WINDOW[0], 1.85))
     tour.hotspot("floor_lamp", "Floor lamp", (lx, ly, 1.75))
     tour.hotspot("entrance", "Entrance", (DOOR[0], -D / 2 + 0.05, 1.4), kind="door", icon="door",
                  target="hallway", arrive="door")
 
     # Close-ups for the detail panels (details/<hotspot>/closeup-<n>.webp)
-    disp = (DESK_X - 0.05, wall - 0.3, 0.74)
+    disp = DISPLAY_LOC
     tour.detail_camera("display", (disp[0] - 0.62, disp[1] - 0.95, 1.22), (disp[0], disp[1], 1.04),
                        lens=35, fstop=5.6)
     tour.detail_camera("display", (disp[0] - 0.8, disp[1] + 0.2, 1.08), (disp[0] - 0.02, disp[1] + 0.07, 0.94),
                        lens=32, fstop=5.6)
-    cam_loc = (cx - 0.1, cy - 0.45, 0.3)
+    cam_loc = CAMERA_LOC
     tour.detail_camera("camera", (cam_loc[0] + 0.38, cam_loc[1] - 0.24, 0.52),
                        (cam_loc[0] + 0.01, cam_loc[1] - 0.03, 0.355), lens=50, fstop=2.8, brighten=1.0)
     tour.detail_camera("camera", (cam_loc[0] - 0.38, cam_loc[1] + 0.24, 0.56),
                        (cam_loc[0], cam_loc[1], 0.35), lens=50, fstop=2.8, brighten=1.0)
-    pod = (cx + 0.15, cy + 0.1, 0)
+    pod = TRIPOD_LOC
     tour.detail_camera("tripod", (pod[0] + 0.45, pod[1] - 0.55, 1.55), (pod[0], pod[1], 1.3),
                        lens=50, fstop=2.8, brighten=0.6)
     tour.detail_camera("tripod", (pod[0] + 1.0, pod[1] - 1.5, 0.85), (pod[0], pod[1], 0.68),
                        lens=35, brighten=0.4)
     tour.detail_camera("bookshelf", (-1.5, 0.75, 1.45), (-W / 2, 0.35, 1.25), lens=30)
-    tour.detail_camera("print", (DESK_X + 0.05, 0.85, 1.85), (DESK_X, wall, 1.85), lens=50)
+    tour.detail_camera("print", (DESK_X + 0.05, 0.85, 1.85), (DESK_X, WALL, 1.85), lens=50)
 
     # Matches "Upscaled facing south.png" (looks north at the desk) and
     # "upscaled facing north.png" (looks west at the bookshelf)
