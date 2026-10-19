@@ -254,20 +254,20 @@
         "name": "tripod",
         "points": [
           [
-            -0.132,
-            -0.791
+            -0.131,
+            -0.787
           ],
           [
-            -0.132,
-            -0.106
+            -0.131,
+            -0.11
           ],
           [
-            0.465,
-            -0.106
+            0.46,
+            -0.11
           ],
           [
-            0.465,
-            -0.791
+            0.46,
+            -0.787
           ]
         ]
       },
@@ -275,8 +275,8 @@
         "name": "box_1",
         "points": [
           [
-            0.107,
-            -1.012
+            0.106,
+            -1.011
           ],
           [
             0.051,
@@ -287,8 +287,8 @@
             -0.394
           ],
           [
-            0.704,
-            -0.952
+            0.703,
+            -0.951
           ]
         ]
       },
@@ -346,11 +346,11 @@
             0.052
           ],
           [
-            -0.228,
+            -0.229,
             0.052
           ],
           [
-            -0.228,
+            -0.229,
             -0.348
           ]
         ]
@@ -536,6 +536,11 @@
           "pitch": 1.07,
           "distance": 2.67
         }
+      },
+      "detail": {
+        "images": [
+          "details/bookshelf/closeup-1.webp"
+        ]
       }
     },
     {
@@ -570,6 +575,13 @@
           "pitch": -4.8,
           "distance": 3.587
         }
+      },
+      "detail": {
+        "images": [
+          "details/display/closeup-1.webp",
+          "details/display/closeup-2.webp"
+        ],
+        "model": "details/display/model.glb"
       }
     },
     {
@@ -604,6 +616,11 @@
           "pitch": 9.64,
           "distance": 3.883
         }
+      },
+      "detail": {
+        "images": [
+          "details/print/closeup-1.webp"
+        ]
       }
     },
     {
@@ -628,6 +645,11 @@
           "pitch": -31.95,
           "distance": 1.984
         },
+        "desk": {
+          "yaw": -143.91,
+          "pitch": -28.73,
+          "distance": 2.185
+        },
         "window": {
           "yaw": -88.73,
           "pitch": -24.27,
@@ -638,6 +660,13 @@
           "pitch": -42.57,
           "distance": 1.552
         }
+      },
+      "detail": {
+        "images": [
+          "details/camera/closeup-1.webp",
+          "details/camera/closeup-2.webp"
+        ],
+        "model": "details/camera/model.glb"
       }
     },
     {
@@ -677,6 +706,13 @@
           "pitch": 0.0,
           "distance": 1.667
         }
+      },
+      "detail": {
+        "images": [
+          "details/tripod/closeup-1.webp",
+          "details/tripod/closeup-2.webp"
+        ],
+        "model": "details/tripod/model.glb"
       }
     },
     {
@@ -790,7 +826,9 @@
           "distance": 0.585
         }
       },
-      "target": ""
+      "target": "hallway",
+      "targetTitle": "Hallway",
+      "arrive": "door"
     }
   ]
 }

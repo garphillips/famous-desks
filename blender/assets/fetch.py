@@ -50,13 +50,23 @@ def load_manifest():
     return assets
 
 
+# Only plain data comes out of zips: never .blend/.usd/scripts, which can carry code.
+EXTRACT_EXTENSIONS = {".jpg", ".jpeg", ".png", ".exr", ".hdr", ".tif", ".tiff", ".webp",
+                      ".gltf", ".glb", ".bin", ".fbx", ".obj", ".mtl"}
+
+
 def safe_extract(zip_path, dest):
     with zipfile.ZipFile(zip_path) as z:
         for member in z.infolist():
+            if member.is_dir():
+                continue
+            if os.path.splitext(member.filename)[1].lower() not in EXTRACT_EXTENSIONS:
+                print(f"  skipping {member.filename}")
+                continue
             target = os.path.realpath(os.path.join(dest, member.filename))
             if not target.startswith(os.path.realpath(dest) + os.sep):
                 raise ValueError(f"Unsafe path in {zip_path}: {member.filename}")
-        z.extractall(dest)
+            z.extract(member, dest)
 
 
 def fetch(asset_id, entry, check_only):
@@ -72,6 +82,9 @@ def fetch(asset_id, entry, check_only):
     os.makedirs(folder, exist_ok=True)
     for f in missing:
         dest = os.path.join(folder, f["name"])
+        if not os.path.realpath(dest).startswith(os.path.realpath(folder) + os.sep):
+            sys.exit(f"{asset_id}: unsafe file name {f['name']!r}")
+        os.makedirs(os.path.dirname(dest), exist_ok=True)  # names may include a subfolder (glTF textures/)
         print(f"fetching {asset_id}/{f['name']}")
         req = urllib.request.Request(f["url"], headers={"User-Agent": "office-tour-asset-fetch/1"})
         with urllib.request.urlopen(req, timeout=120) as r, open(dest + ".part", "wb") as out:

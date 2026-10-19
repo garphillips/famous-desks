@@ -1,6 +1,15 @@
-"""Shared material library: procedural node materials, no image textures.
+"""Shared material library: scanned PBR textures where they beat procedural, and
+procedural node materials for the rest (and as a fallback when the texture
+cache is missing: run python3 -I blender/assets/fetch.py).
 
-Nothing here uses UVs (Builder meshes have none). Patterns come from:
+Scanned textures (blender/assets/manifest/textures.json) are colour, roughness
+and displacement maps; displacement only drives a Bump node. Builder meshes have
+no UVs, so textures are box-projected in world space (walls, floor), object space
+(props), or along each part's grain frame (wood, brushed metal), at real-world
+scale, with a random offset per part. A grime layer (dust and smudges, also
+scanned) breaks up roughness and colour.
+
+Patterns come from:
 - world position, for things that must line up across objects (brick, floorboards);
 - the "grain" point attribute that finish_scene() writes on every mesh: per
   island (each Builder box/cylinder), a local frame whose X runs along the
@@ -19,6 +28,8 @@ import random
 
 import bpy
 import numpy as np
+
+from . import assets
 
 # ----------------------------------------------------------------------------
 # Node graph helpers
@@ -154,6 +165,22 @@ class _G:
         self.set(n.inputs["Color"], color)
         return n.outputs["Color"]
 
+    def tex(self, img, vec, box=0.0):
+        """Image texture; box > 0 is box (triplanar) projection with that blend."""
+        n = self.node("ShaderNodeTexImage", image=img, projection="BOX" if box else "FLAT")
+        if box:
+            n.projection_blend = box
+        self.set(n.inputs["Vector"], vec)
+        return n.outputs["Color"]
+
+    def bw(self, color):
+        n = self.node("ShaderNodeRGBToBW")
+        self.set(n.inputs[0], color)
+        return n.outputs[0]
+
+    def gray(self, v):
+        return self.vec(v, v, v)
+
 
 def _new(name, viewport_color):
     """Fresh node material with a Principled BSDF wired to the output."""
@@ -186,6 +213,98 @@ def _principled(g, bsdf, **inputs):
     }
     for k, v in inputs.items():
         g.set(bsdf.inputs[names[k]], v)
+
+
+# ----------------------------------------------------------------------------
+# Scanned texture helpers
+# ----------------------------------------------------------------------------
+
+BRICK = "ph_painted_brick"
+PLASTER = "ph_white_plaster_02"
+OAK = "ph_oak_veneer_01"
+FLOOR_WOOD = "acg_Wood063"
+TIMBER = "acg_Wood060"
+PINE = "acg_Wood092"
+CARDBOARD = "acg_Cardboard004"
+PAPER = "acg_Paper001"
+KNIT = "acg_Fabric030"
+LEATHER = "acg_Leather027"
+PLASTIC = "acg_Plastic012A"
+BRUSHED = "acg_Metal009"
+DUST = "acg_SurfaceImperfections015"
+SMUDGE = "acg_SurfaceImperfections003"
+
+_ROLES = {"ph": {"col": "diff", "rough": "rough", "disp": "disp"},
+          "acg": {"col": "Color", "rough": "Roughness", "disp": "Displacement", "mask": "Opacity"}}
+
+
+def _map_file(asset_id, role):
+    src, base = asset_id.split("_", 1)
+    if src == "ph":
+        return f"{base}_{_ROLES[src][role]}_2k.jpg"
+    return f"{base}_2K-JPG_{_ROLES[src][role]}.jpg"
+
+
+def _image(asset_id, role):
+    img = bpy.data.images.load(assets.path(asset_id, _map_file(asset_id, role)), check_existing=True)
+    if role != "col":
+        img.colorspace_settings.name = "Non-Color"
+    return img
+
+
+_missing = set()
+
+
+def _have(*ids):
+    """True when every texture is in the cache; otherwise warn once and use procedural."""
+    ok = True
+    for a in ids:
+        try:
+            assets.path(a, _map_file(a, "mask" if a in (DUST, SMUDGE) else "col"))
+        except (KeyError, FileNotFoundError) as e:
+            ok = False
+            if a not in _missing:
+                _missing.add(a)
+                print(f"materials: {e} (procedural fallback)")
+    return ok
+
+
+def _scan(g, asset_id, vec, box=0.0, roles=("col", "rough", "disp")):
+    return [g.tex(_image(asset_id, r), vec, box) for r in roles]
+
+
+def _world_vec(g, size, offset=(0.0, 0.0, 0.0)):
+    return g.vmath("ADD", g.scale(g.position(), (1 / size,) * 3), offset)
+
+
+def _obj_vec(g, size):
+    """Object space, real-world scale, every part from a different patch of the texture."""
+    _, rnd = g.attr("island_rand")
+    off = g.scale(g.vec(rnd, rnd, rnd), (13.1, 7.7, 3.3))
+    return g.vmath("ADD", g.scale(g.obj_coords(), (1 / size,) * 3), off)
+
+
+def _grain_vec(g, size, swap=False, along=None, across=None):
+    """Flat mapping along each part's grain frame: u along the long axis."""
+    gv, _ = g.attr("grain")
+    gx, gy, gz = g.sep(gv)
+    u = g.math("DIVIDE", along if along is not None else gx, size)
+    v = g.math("DIVIDE", across if across is not None else g.math("ADD", gy, gz), size)
+    return g.vec(v, u, 0.0) if swap else g.vec(u, v, 0.0)
+
+
+def _grime(g, vec):
+    """(dust, smudge) masks, 0..1, from scanned imperfection maps."""
+    dust = g.tex(_image(DUST, "mask"), vec, 0.3)
+    smudge = g.tex(_image(SMUDGE, "mask"), g.vmath("ADD", g.scale(vec, (0.7, 0.7, 0.7)), (0.37, 0.61, 0.13)), 0.3)
+    return g.map(dust, 0.2, 0.55), g.map(smudge, 0.08, 0.35)
+
+
+def _tone(g, color, tex, median, spread, lo=0.6, hi=1.4):
+    """color modulated by a texture's luminance around its median (keeps the scan's
+    detail, sets our own colour and value)."""
+    k = g.map(g.bw(tex), median - spread, median + spread, lo, hi)
+    return g.mix(1.0, color, g.gray(k), "MULTIPLY")
 
 
 # ----------------------------------------------------------------------------
@@ -238,9 +357,10 @@ def painted_brick(axis):
     axis argument only keeps the historical material names (brick_x / brick_y).
     """
     name = f"painted_brick_{axis.lower()}"
-    mat = bpy.data.materials.get(name)
-    if mat:
-        return mat
+    return _pick(name, brick_scan, _brick_procedural, BRICK)
+
+
+def _brick_procedural(name):
     paint = (0.80, 0.79, 0.76)
     mat, g, bsdf = _new(name, paint)
     pos = g.position()
@@ -291,24 +411,9 @@ def floorboards(name="floorboards"):
     """Wide oak boards running north-south, uneven widths, staggered end joints,
     every plank its own tone. World-projected (X across boards, Y along)."""
     mat, g, bsdf = _new(name, (0.36, 0.17, 0.06))
-    x, y, z = g.sep(g.position())
-    # board coordinate: ~19 cm boards whose widths wander +-20%, never a repeat
-    f = g.math("ADD", g.math("DIVIDE", x, 0.19), g.math("MULTIPLY", g.math("SINE", g.math("MULTIPLY", x, 1.9)), 0.22))
-    f = g.math("ADD", f, g.math("MULTIPLY", g.math("SINE", g.math("ADD", g.math("MULTIPLY", x, 4.3), 1.0)), 0.13))
-    board = g.math("FLOOR", f)
-    across = g.math("FRACT", f)
-    r_board, _ = g.white(g.vec(board, 0.0, 0.0))
-    length = g.math("ADD", 1.1, g.math("MULTIPLY", r_board, 1.7))
-    along = g.math("DIVIDE", g.math("ADD", y, g.math("MULTIPLY", r_board, 9.7)), length)
-    piece = g.math("FLOOR", along)
-    along_f = g.math("FRACT", along)
-    r_piece, rc = g.white(g.vec(board, piece, 1.0))
-    r1, r2, r3 = g.sep(rc)
-
-    # seams (in metres from the edge)
-    d_side = g.math("MULTIPLY", g.math("MINIMUM", across, g.math("SUBTRACT", 1.0, across)), 0.19)
-    d_end = g.math("MULTIPLY", g.math("MINIMUM", along_f, g.math("SUBTRACT", 1.0, along_f)), length)
-    seam = g.math("MAXIMUM", g.map(d_side, 0.0, 0.0018, 1.0, 0.0), g.map(d_end, 0.0, 0.0012, 1.0, 0.0))
+    b = _boards(g)
+    x, y, across, seam, r_piece = b["x"], b["y"], b["across"], b["seam"], b["r_piece"]
+    r1, r2, r3 = b["r"]
 
     # plain-sawn grain: rings around a log axis set back from the board face
     gy = g.math("ADD", g.math("MULTIPLY", across, 0.19), g.math("MULTIPLY", r1, 0.5))
@@ -332,6 +437,28 @@ def floorboards(name="floorboards"):
     h = g.math("SUBTRACT", h, g.math("MULTIPLY", pores, 0.12))
     _principled(g, bsdf, color=col, rough=rough, spec=0.5, normal=g.bump(h, 0.35, 0.003))
     return mat
+
+
+def _boards(g):
+    """Floorboard layout in world space: ~19 cm boards (widths wander +-20%) running
+    north-south, staggered end joints. Returns coordinates, per-piece randoms and
+    the seam mask (1 in the gaps)."""
+    x, y, _ = g.sep(g.position())
+    f = g.math("ADD", g.math("DIVIDE", x, 0.19), g.math("MULTIPLY", g.math("SINE", g.math("MULTIPLY", x, 1.9)), 0.22))
+    f = g.math("ADD", f, g.math("MULTIPLY", g.math("SINE", g.math("ADD", g.math("MULTIPLY", x, 4.3), 1.0)), 0.13))
+    board = g.math("FLOOR", f)
+    across = g.math("FRACT", f)
+    r_board, _ = g.white(g.vec(board, 0.0, 0.0))
+    length = g.math("ADD", 1.1, g.math("MULTIPLY", r_board, 1.7))
+    along = g.math("DIVIDE", g.math("ADD", y, g.math("MULTIPLY", r_board, 9.7)), length)
+    piece = g.math("FLOOR", along)
+    along_f = g.math("FRACT", along)
+    r_piece, rc = g.white(g.vec(board, piece, 1.0))
+    # seams (in metres from the edge)
+    d_side = g.math("MULTIPLY", g.math("MINIMUM", across, g.math("SUBTRACT", 1.0, across)), 0.19)
+    d_end = g.math("MULTIPLY", g.math("MINIMUM", along_f, g.math("SUBTRACT", 1.0, along_f)), length)
+    seam = g.math("MAXIMUM", g.map(d_side, 0.0, 0.0025, 1.0, 0.0), g.map(d_end, 0.0, 0.0012, 1.0, 0.0))
+    return {"x": x, "y": y, "across": across, "r_piece": r_piece, "r": g.sep(rc), "seam": seam}
 
 
 def _grain(g, gx, gy, gz, rings_per_m=90.0, pore_scale=1.0):
@@ -674,37 +801,255 @@ def roof(name="roof_slate"):
 
 
 # ----------------------------------------------------------------------------
+# Scanned (PBR) materials
+# ----------------------------------------------------------------------------
+
+
+def brick_scan(name):
+    """Thick white paint over hand-laid brick (scan: 22 courses per 1.69 m tile,
+    so ~7.7 cm courses and ~21 cm bricks). World box projection, so courses run
+    on across wall pieces, reveals and sills."""
+    paint = (0.85, 0.845, 0.83)
+    mat, g, bsdf = _new(name, paint)
+    pos = g.position()
+    col_t, r_t, h_t = _scan(g, BRICK, _world_vec(g, 1.69), 0.2)
+    lum = g.bw(col_t)
+    # the scan's paint is blue: keep its light and shade, repaint it white
+    shade = g.map(lum, 0.03, 0.36, 0.5, 1.04)
+    wash = g.noise(pos, 0.8, 4.0, 0.6)  # paint thickness varies across the wall
+    shade = g.math("MULTIPLY", shade, g.map(wash, 0.3, 0.7, 0.92, 1.03))
+    col = g.mix(1.0, paint, g.gray(shade), "MULTIPLY")
+    chip = g.map(lum, 0.04, 0.12, 1.0, 0.0)  # bare brick where paint has flaked
+    col = g.mix(g.math("MULTIPLY", chip, 0.6), col, (0.30, 0.19, 0.13))
+    dust, smudge = _grime(g, _world_vec(g, 1.3))
+    col = g.mix(g.math("MULTIPLY", smudge, 0.12), col, (0.50, 0.48, 0.45))
+    rough = g.math("ADD", g.map(r_t, 0.88, 1.0, 0.8, 0.94), g.math("MULTIPLY", dust, 0.04))
+    _principled(g, bsdf, color=col, rough=rough, spec=0.4, normal=g.bump(h_t, 0.8, 0.012))
+    return mat
+
+
+def plaster_scan(name="plaster"):
+    c = (0.80, 0.785, 0.75)
+    mat, g, bsdf = _new(name, c)
+    col_t, r_t, h_t = _scan(g, PLASTER, _world_vec(g, 1.2, (0.3, 0.7, 0.1)), 0.2)
+    col = _tone(g, c, col_t, 0.245, 0.06, 0.94, 1.04)
+    dust, smudge = _grime(g, _world_vec(g, 1.6))
+    col = g.mix(g.math("MULTIPLY", smudge, 0.1), col, (0.55, 0.53, 0.50))
+    rough = g.map(r_t, 0.85, 0.95, 0.82, 0.95)
+    _principled(g, bsdf, color=col, rough=rough, normal=g.bump(h_t, 0.15, 0.003))
+    return mat
+
+
+def floor_scan(name="floorboards"):
+    """Wide oak boards (procedural layout, see _boards) cut from a scanned wood: each
+    board piece takes its own strip of the scan, its own tone and wear."""
+    mat, g, bsdf = _new(name, (0.36, 0.17, 0.06))
+    b = _boards(g)
+    r1, r2, r3 = b["r"]
+    u = g.math("DIVIDE", g.math("ADD", b["y"], g.math("MULTIPLY", r3, 40.0)), 2.0)
+    v = g.math("DIVIDE", g.math("ADD", g.math("MULTIPLY", b["across"], 0.19), g.math("MULTIPLY", r1, 7.3)), 2.0)
+    col_t, r_t, h_t = _scan(g, FLOOR_WOOD, g.vec(u, v, 0.0))
+    tone = g.map(b["r_piece"], 0.0, 1.0, 0.7, 1.3)
+    tone = g.math("MULTIPLY", tone, g.map(r2, 0.85, 1.0, 1.0, 1.25))  # a few pale boards
+    col = g.hsv(col_t, g.map(r2, 0.0, 1.0, 0.49, 0.51), g.map(r1, 0.0, 1.0, 0.9, 1.15), tone)
+    xy = g.vec(b["x"], b["y"], 0.0)
+    wear = g.map(g.noise(xy, 0.7, 3.0, 0.5), 0.45, 0.7, 0.0, 1.0)  # traffic: lighter, duller
+    col = g.mix(g.math("MULTIPLY", wear, 0.22), col, (0.50, 0.30, 0.15))
+    dust, smudge = _grime(g, g.scale(xy, (0.6, 0.6, 0.6)))
+    col = g.mix(g.math("MULTIPLY", dust, 0.12), col, (0.40, 0.33, 0.26))
+    col = g.mix(b["seam"], col, (0.04, 0.02, 0.008))
+    rough = g.math("ADD", g.map(r_t, 0.42, 0.58, 0.22, 0.34), g.math("MULTIPLY", wear, 0.14))
+    rough = g.math("ADD", rough, g.math("MULTIPLY", dust, 0.2))
+    coat_rough = g.math("ADD", 0.1, g.math("ADD", g.math("MULTIPLY", smudge, 0.25), g.math("MULTIPLY", wear, 0.2)))
+    h = g.math("SUBTRACT", g.math("MULTIPLY", h_t, 0.4), b["seam"])
+    _principled(g, bsdf, color=col, rough=rough, spec=0.5, coat=g.map(wear, 0.0, 1.0, 0.35, 0.1),
+                coat_rough=coat_rough, normal=g.bump(h, 0.35, 0.003))
+    return mat
+
+
+def wood_scan(name, asset, size, swap=False, hsv=(0.5, 1.0, 1.0), rough=(0.4, 0.6), planks=0.0, coat=0.0,
+              age=0.0, rough_map=(0.0, 1.0)):
+    """Solid wood from a scan, mapped along each part's grain frame ('grain' attribute,
+    which already offsets every part to a different patch). swap: the scan's grain runs
+    along the image's V axis. planks: board width (m) across the second grain axis."""
+    mat, g, bsdf = _new(name, (0.3, 0.17, 0.07))
+    gv, _ = g.attr("grain")
+    gx, gy, gz = g.sep(gv)
+    _, rnd = g.attr("island_rand")
+    along, across = gx, g.math("ADD", gy, gz)
+    joint = r_pl = None
+    if planks:
+        f = g.math("DIVIDE", g.math("ADD", gy, 50.0), planks)
+        frac = g.math("FRACT", f)
+        e = g.math("MULTIPLY", g.math("MINIMUM", frac, g.math("SUBTRACT", 1.0, frac)), planks)
+        joint = g.map(e, 0.0, 0.004, 1.0, 0.0)
+        r_pl, r_plc = g.white(g.vec(g.math("FLOOR", f), 3.0, 0.0))
+        p1, p2, _ = g.sep(r_plc)
+        along = g.math("ADD", along, g.math("MULTIPLY", p1, 37.0))
+        across = g.math("ADD", across, g.math("MULTIPLY", p2, 5.0))
+    col_t, r_t, h_t = _scan(g, asset, _grain_vec(g, size, swap, along, across))
+    hue, sat, val = hsv
+    col = g.hsv(col_t, g.map(rnd, 0.0, 1.0, hue - 0.01, hue + 0.01), sat, g.map(rnd, 0.0, 1.0, val * 0.85, val * 1.12))
+    h = h_t
+    if planks:
+        col = g.mix(g.math("MULTIPLY", r_pl, 0.35), col, g.mix(0.5, col, (0.0, 0.0, 0.0)))
+        col = g.mix(joint, col, (0.02, 0.01, 0.005))
+        h = g.math("SUBTRACT", h, joint)
+    dust, smudge = _grime(g, _world_vec(g, 1.0))
+    if age:
+        # old timber: darker weathered patches
+        patches = g.map(g.noise(g.position(), 2.5, 4.0, 0.6), 0.4, 0.7, 0.0, 0.5 * age)
+        col = g.mix(patches, col, g.mix(0.6, col, (0.0, 0.0, 0.0)))
+    r = g.map(r_t, rough_map[0], rough_map[1], rough[0], rough[1])
+    r = g.math("ADD", r, g.math("MULTIPLY", dust, 0.1))
+    _principled(g, bsdf, color=col, rough=r, coat=coat,
+                coat_rough=g.math("ADD", 0.18, g.math("MULTIPLY", smudge, 0.3)),
+                normal=g.bump(h, 0.3, 0.002))
+    return mat
+
+
+def plastic_scan(name, color, rough, bump=0.03):
+    """Matte/satin plastic (and black storage boxes): scan detail, our colour, dust and smudges."""
+    mat, g, bsdf = _new(name, color)
+    col_t, r_t, h_t = _scan(g, PLASTIC, _obj_vec(g, 0.6), 0.25)
+    col = _tone(g, color, col_t, 0.024, 0.02, 0.75, 1.25)
+    dust, smudge = _grime(g, _obj_vec(g, 0.9))
+    col = g.mix(g.math("MULTIPLY", dust, 0.12 if max(color) < 0.2 else 0.05), col, (0.30, 0.29, 0.27))
+    r = g.math("MULTIPLY", rough, g.map(r_t, 0.37, 0.42, 0.85, 1.15))
+    r = g.math("ADD", r, g.math("ADD", g.math("MULTIPLY", smudge, 0.15), g.math("MULTIPLY", dust, 0.2)))
+    _principled(g, bsdf, color=col, rough=r, normal=g.bump(h_t, bump * 3, 0.001))
+    return mat
+
+
+def fabric_scan(name, color, sheen_tint=(0.5, 0.5, 0.5)):
+    mat, g, bsdf = _new(name, color)
+    col_t, r_t, h_t = _scan(g, KNIT, _obj_vec(g, 0.25), 0.3)
+    col = _tone(g, color, col_t, 0.104, 0.03, 0.6, 1.5)
+    _principled(g, bsdf, color=col, rough=g.map(r_t, 0.65, 0.85, 0.85, 1.0), sheen=0.7, sheen_tint=sheen_tint,
+                sheen_rough=0.4, normal=g.bump(h_t, 0.4, 0.001))
+    return mat
+
+
+def leatherette_scan(name, color=(0.02, 0.02, 0.021)):
+    mat, g, bsdf = _new(name, color)
+    col_t, r_t, h_t = _scan(g, LEATHER, _obj_vec(g, 0.4), 0.3)
+    col = _tone(g, color, col_t, 0.005, 0.003, 0.7, 1.3)
+    _, smudge = _grime(g, _obj_vec(g, 0.7))
+    r = g.math("ADD", g.map(r_t, 0.4, 0.5, 0.38, 0.52), g.math("MULTIPLY", smudge, 0.12))
+    _principled(g, bsdf, color=col, rough=r, coat=0.15, coat_rough=0.35, normal=g.bump(h_t, 0.3, 0.001))
+    return mat
+
+
+def paper_scan(name="paper"):
+    mat, g, bsdf = _new(name, (0.85, 0.84, 0.80))
+    _, rnd = g.attr("island_rand")
+    col_t, r_t, h_t = _scan(g, PAPER, _obj_vec(g, 0.35), 0.3)
+    col = g.mix(g.map(rnd, 0.0, 1.0), (0.86, 0.86, 0.84), (0.82, 0.79, 0.70))
+    col = g.mix(g.map(g.math("FRACT", g.math("MULTIPLY", rnd, 7.3)), 0.85, 1.0, 0.0, 0.8), col, (0.80, 0.82, 0.86))
+    col = _tone(g, col, col_t, 0.9, 0.04, 0.95, 1.03)
+    _, smudge = _grime(g, _obj_vec(g, 0.5))
+    col = g.mix(g.math("MULTIPLY", smudge, 0.15), col, (0.55, 0.53, 0.50))
+    _principled(g, bsdf, color=col, rough=g.map(r_t, 0.55, 0.7, 0.62, 0.8), sheen=0.25, sss=0.05,
+                sss_radius=(0.02, 0.02, 0.02), normal=g.bump(h_t, 0.08, 0.0005))
+    return mat
+
+
+def cardboard_scan(name="cardboard"):
+    mat, g, bsdf = _new(name, (0.43, 0.27, 0.13))
+    _, rnd = g.attr("island_rand")
+    col_t, r_t, h_t = _scan(g, CARDBOARD, _obj_vec(g, 0.7), 0.25)
+    col = g.hsv(col_t, g.map(rnd, 0.0, 1.0, 0.49, 0.505), 0.8, g.map(rnd, 0.0, 1.0, 0.85, 1.05))
+    dust, smudge = _grime(g, _obj_vec(g, 0.9))
+    col = g.mix(g.math("MULTIPLY", smudge, 0.2), col, (0.22, 0.14, 0.07))
+    _principled(g, bsdf, color=col, rough=g.map(r_t, 0.6, 0.66, 0.78, 0.9), sheen=0.2,
+                normal=g.bump(h_t, 0.15, 0.001))
+    return mat
+
+
+def aluminium_scan(name="aluminium"):
+    """Brushed/bead-blasted aluminium: brushing along each part's long axis."""
+    mat, g, bsdf = _new(name, (0.8, 0.8, 0.82))
+    col_t, r_t, h_t = _scan(g, BRUSHED, _grain_vec(g, 0.45))
+    col = _tone(g, (0.86, 0.865, 0.88), col_t, 0.299, 0.03, 0.93, 1.05)
+    _, smudge = _grime(g, _obj_vec(g, 0.6))
+    r = g.math("ADD", g.map(r_t, 0.42, 0.53, 0.24, 0.36), g.math("MULTIPLY", smudge, 0.12))
+    _principled(g, bsdf, color=col, metal=1.0, rough=r, normal=g.bump(h_t, 0.03, 0.0005))
+    return mat
+
+
+def steel_black_scan(name="steel_black"):
+    """Painted black steel (window sections): soft sheen, orange-peel, grime in the roughness."""
+    mat, g, bsdf = _new(name, (0.015, 0.015, 0.015))
+    p = g.position()
+    peel = g.noise(p, 300.0, 2.0, 0.5)
+    var = g.noise(p, 8.0, 3.0, 0.6)
+    col = g.mix(g.map(var, 0.4, 0.7, 0.0, 1.0), (0.014, 0.014, 0.015), (0.03, 0.03, 0.03))
+    dust, smudge = _grime(g, _world_vec(g, 0.8))
+    col = g.mix(g.math("MULTIPLY", dust, 0.15), col, (0.25, 0.24, 0.22))
+    r = g.math("ADD", g.map(var, 0.3, 0.7, 0.3, 0.42), g.math("ADD", g.math("MULTIPLY", smudge, 0.2),
+                                                              g.math("MULTIPLY", dust, 0.25)))
+    _principled(g, bsdf, color=col, metal=0.15, rough=r, coat=0.2, coat_rough=0.3, normal=g.bump(peel, 0.05, 0.001))
+    return mat
+
+
+# ----------------------------------------------------------------------------
 # Library
 # ----------------------------------------------------------------------------
 
 
+def _pick(name, scanned, procedural, *ids):
+    """Scanned material when its textures are cached, else the procedural one."""
+    if name not in bpy.data.materials:
+        (scanned if _have(*ids, DUST, SMUDGE) else procedural)(name)
+    return bpy.data.materials[name]
+
+
 def floor_material():
-    return _cached("floorboards", floorboards)
+    return _pick("floorboards", floor_scan, floorboards, FLOOR_WOOD)
 
 
 def library():
     """Named materials every room can draw from. Names are stable; add, don't rename."""
     return {
-        "plaster": _cached("plaster", plaster),
+        "plaster": _pick("plaster", plaster_scan, plaster, PLASTER),
         "brick_x": painted_brick("X"),
         "brick_y": painted_brick("Y"),
         "floor": floor_material(),
-        "ceiling_wood": wood("ceiling_wood", (0.34, 0.20, 0.10), (0.16, 0.08, 0.035), 0.7, 60.0, planks=0.14, age=0.5),
-        "beam_wood": wood("beam_wood", (0.40, 0.25, 0.12), (0.17, 0.09, 0.04), 0.65, 45.0, age=1.0),
-        "oak": wood("oak", (0.30, 0.15, 0.055), (0.13, 0.055, 0.018), 0.38, 110.0, coat=0.3),
-        "pine": wood("pine", (0.58, 0.36, 0.15), (0.36, 0.17, 0.05), 0.5, 55.0, coat=0.15),
+        "ceiling_wood": _pick("ceiling_wood",
+                              lambda n: wood_scan(n, TIMBER, 1.0, hsv=(0.5, 0.85, 1.9), rough=(0.6, 0.8), planks=0.14,
+                                                  age=0.5, rough_map=(0.6, 0.72)),
+                              lambda n: wood(n, (0.34, 0.20, 0.10), (0.16, 0.08, 0.035), 0.7, 60.0, planks=0.14, age=0.5),
+                              TIMBER),
+        "beam_wood": _pick("beam_wood",
+                           lambda n: wood_scan(n, TIMBER, 1.3, hsv=(0.5, 0.85, 2.0), rough=(0.58, 0.8), age=1.0,
+                                               rough_map=(0.6, 0.72)),
+                           lambda n: wood(n, (0.40, 0.25, 0.12), (0.17, 0.09, 0.04), 0.65, 45.0, age=1.0),
+                           TIMBER),
+        "oak": _pick("oak",
+                     lambda n: wood_scan(n, OAK, 1.83, swap=True, hsv=(0.485, 1.35, 0.75), rough=(0.3, 0.5),
+                                         coat=0.3, rough_map=(0.35, 0.7)),
+                     lambda n: wood(n, (0.30, 0.15, 0.055), (0.13, 0.055, 0.018), 0.38, 110.0, coat=0.3),
+                     OAK),
+        "pine": _pick("pine",
+                      lambda n: wood_scan(n, PINE, 1.0, swap=True, hsv=(0.5, 0.8, 1.0), rough=(0.35, 0.55), coat=0.15,
+                                          rough_map=(0.45, 0.52)),
+                      lambda n: wood(n, (0.58, 0.36, 0.15), (0.36, 0.17, 0.05), 0.5, 55.0, coat=0.15),
+                      PINE),
         "lino_green": _cached("lino_green", lino),
-        "steel_black": _cached("steel_black", steel_black),
+        "steel_black": _pick("steel_black", steel_black_scan, steel_black),
         "sash_white": _cached("sash_white", lambda n: satin_paint(n, (0.82, 0.82, 0.80))),
         "glass": _cached("glass", glass),
-        "aluminium": _cached("aluminium", aluminium),
-        "plastic_black": _cached("plastic_black", lambda n: _plastic(n, (0.022, 0.022, 0.024), 0.5)),
-        "plastic_black_satin": _cached("plastic_black_satin", lambda n: _plastic(n, (0.018, 0.018, 0.02), 0.22)),
-        "plastic_white": _cached("plastic_white", lambda n: _plastic(n, (0.82, 0.82, 0.80), 0.28)),
+        "aluminium": _pick("aluminium", aluminium_scan, aluminium, BRUSHED),
+        "plastic_black": _plastic_lib("plastic_black", (0.022, 0.022, 0.024), 0.5),
+        "plastic_black_satin": _plastic_lib("plastic_black_satin", (0.018, 0.018, 0.02), 0.22),
+        "plastic_white": _plastic_lib("plastic_white", (0.82, 0.82, 0.80), 0.28),
         "screen": _cached("screen", screen),
-        "paper": _cached("paper", paper),
-        "cardboard": _cached("cardboard", cardboard),
-        "fabric_black": _cached("fabric_black", lambda n: fabric(n, (0.025, 0.025, 0.028))),
+        "paper": _pick("paper", paper_scan, paper, PAPER),
+        "cardboard": _pick("cardboard", cardboard_scan, cardboard, CARDBOARD),
+        "fabric_black": _pick("fabric_black", lambda n: fabric_scan(n, (0.025, 0.025, 0.028)),
+                              lambda n: fabric(n, (0.025, 0.025, 0.028)), KNIT),
+        "leatherette_black": _pick("leatherette_black", leatherette_scan,
+                                   lambda n: _plastic(n, (0.02, 0.02, 0.021), 0.45, 0.08), LEATHER),
         "wicker": _cached("wicker", wicker),
         "lampshade": _cached("lampshade", lampshade),
         "art_dark": _cached("art_dark", art_print),
@@ -717,6 +1062,10 @@ def library():
         "house_brick": render_wall("house_brick", (0.30, 0.12, 0.07)),
         "roof_slate": _cached("roof_slate", roof),
     }
+
+
+def _plastic_lib(name, color, rough):
+    return _pick(name, lambda n: plastic_scan(n, color, rough), lambda n: _plastic(n, color, rough), PLASTIC)
 
 
 BOOK_COLOURS = [
