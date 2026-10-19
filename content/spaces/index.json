@@ -2,7 +2,13 @@
   "spaces": [
     {
       "slug": "jobs-room",
-      "title": "The Jobs Room"
+      "title": "The Jobs Room",
+      "order": 1
+    },
+    {
+      "slug": "hallway",
+      "title": "Hallway",
+      "order": 2
     }
   ]
 }

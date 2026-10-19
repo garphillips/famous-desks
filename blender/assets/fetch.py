@@ -50,13 +50,23 @@ def load_manifest():
     return assets
 
 
+# Only plain data comes out of zips: never .blend/.usd/scripts, which can carry code.
+EXTRACT_EXTENSIONS = {".jpg", ".jpeg", ".png", ".exr", ".hdr", ".tif", ".tiff", ".webp",
+                      ".gltf", ".glb", ".bin", ".fbx", ".obj", ".mtl"}
+
+
 def safe_extract(zip_path, dest):
     with zipfile.ZipFile(zip_path) as z:
         for member in z.infolist():
+            if member.is_dir():
+                continue
+            if os.path.splitext(member.filename)[1].lower() not in EXTRACT_EXTENSIONS:
+                print(f"  skipping {member.filename}")
+                continue
             target = os.path.realpath(os.path.join(dest, member.filename))
             if not target.startswith(os.path.realpath(dest) + os.sep):
                 raise ValueError(f"Unsafe path in {zip_path}: {member.filename}")
-        z.extractall(dest)
+            z.extract(member, dest)
 
 
 def fetch(asset_id, entry, check_only):
