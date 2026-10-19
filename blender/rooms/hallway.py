@@ -14,7 +14,7 @@ import math
 
 import bpy
 
-from lib import architecture, furniture as f, materials, tour
+from lib import architecture, environment, furniture as f, materials, tour
 from lib.geo import collection
 
 W, D = 2.0, 5.0
@@ -49,10 +49,8 @@ CONSOLE_Y = 0.4
 def build():
     m = materials.library()
     architecture.Room(SPEC, m).build()
-    architecture.build_outdoors(m)
-    architecture.build_world(strength=2.5)
-    architecture.build_sun(azimuth_deg=200, elevation_deg=35, strength=5.0)
-    bpy.context.scene.view_settings.exposure = 2.0
+    environment.build_daylight(sun_azimuth=75, sun_elevation=25, mirror=True)  # same morning as the Jobs Room
+    bpy.context.scene.view_settings.exposure = 6.0
 
     furn = collection("Furniture")
     props = collection("Props")

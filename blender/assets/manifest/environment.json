@@ -1,0 +1,11 @@
+{
+  "hdri_studio_garden": {
+    "kind": "hdri",
+    "title": "Studio Garden",
+    "source": "Poly Haven",
+    "page": "https://polyhaven.com/a/studio_garden",
+    "author": "Sergej Majboroda",
+    "license": "CC0",
+    "files": [{"url": "https://dl.polyhaven.org/file/ph-assets/HDRIs/exr/8k/studio_garden_8k.exr", "name": "studio_garden_8k.exr"}]
+  }
+}

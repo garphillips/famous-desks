@@ -10,6 +10,7 @@ import bmesh
 import bpy
 from mathutils import Matrix, Vector
 
+from . import assets
 from .geo import Builder, collection
 
 
@@ -131,7 +132,7 @@ def build_outdoors(mats, size=200.0, seed=11):
     houses.build("houses", col)
 
 
-def build_sun(azimuth_deg, elevation_deg, strength=4.0, colour=(1.0, 0.82, 0.68), angle_deg=1.2):
+def build_sun(azimuth_deg, elevation_deg, strength=4.0, colour=(1.0, 0.82, 0.68), angle_deg=0.6):
     """Sun shining FROM the given azimuth (0 = north, 90 = east)."""
     col = collection("Lighting")
     light = bpy.data.lights.new("sun", "SUN")
@@ -182,3 +183,66 @@ def build_world(strength=0.1, sun_azimuth=200.0, sun_elevation=35.0, air=1.0, ae
         nt.links.new(sky.outputs["Color"], bg.inputs["Color"])
     nt.links.new(bg.outputs[0], out.inputs["Surface"])
     return world
+
+
+# Daylight HDRIs (blender/assets/manifest/environment.json). sun_azimuth: where the
+# photo's sun lands with no rotation; sun_irradiance: the energy clamped out of its
+# sun disc, relative to the sky (so a sun lamp of that strength puts it back).
+HDRIS = {
+    "studio_garden": {"asset": "hdri_studio_garden", "file": "studio_garden_8k.exr",
+                      "sun_azimuth": 126.2, "sun_irradiance": 8.0},
+}
+
+
+def build_hdri_world(name, sun_azimuth, strength=1.0, clamp=20.0, mirror=False, backplate=1.0):
+    """Photographic sky: light, reflections and the view out of the windows.
+
+    Rotated so the photo's sun sits at sun_azimuth (0 = north, clockwise); its
+    disc is clamped away and build_sun() stands in for it. mirror flips the
+    photo east-west (the sun stays put). backplate scales only what the camera
+    sees directly, to balance the bright view against the interior.
+    """
+    info = HDRIS[name]
+    world = bpy.data.worlds.new("sky")
+    bpy.context.scene.world = world
+    nt = world.node_tree
+    nodes, link = nt.nodes, nt.links.new
+    bg = nodes.get("Background") or nodes.new("ShaderNodeBackground")
+    out = nodes.get("World Output") or nodes.new("ShaderNodeOutputWorld")
+    coord = nodes.new("ShaderNodeTexCoord")
+    mapping = nodes.new("ShaderNodeMapping")
+    turn = (-sun_azimuth if mirror else sun_azimuth) - info["sun_azimuth"]
+    mapping.inputs["Rotation"].default_value = (0, 0, math.radians(turn))
+    mapping.inputs["Scale"].default_value = (-1 if mirror else 1, 1, 1)
+    env = nodes.new("ShaderNodeTexEnvironment")
+    env.image = bpy.data.images.load(assets.path(info["asset"], info["file"]), check_existing=True)
+    env.interpolation = "Cubic"
+    link(coord.outputs["Generated"], mapping.inputs["Vector"])
+    link(mapping.outputs["Vector"], env.inputs["Vector"])
+    colour = env.outputs["Color"]
+    if clamp:
+        lo = nodes.new("ShaderNodeVectorMath")
+        lo.operation = "MINIMUM"
+        lo.inputs[1].default_value = (clamp, clamp, clamp)
+        link(colour, lo.inputs[0])
+        colour = lo.outputs["Vector"]
+    link(colour, bg.inputs["Color"])
+    if backplate == 1.0:
+        bg.inputs["Strength"].default_value = strength
+    else:
+        path = nodes.new("ShaderNodeLightPath")
+        mix = nodes.new("ShaderNodeMix")
+        mix.inputs["A"].default_value = strength
+        mix.inputs["B"].default_value = strength * backplate
+        link(path.outputs["Is Camera Ray"], mix.inputs["Factor"])
+        link(mix.outputs["Result"], bg.inputs["Strength"])
+    link(bg.outputs[0], out.inputs["Surface"])
+    return world
+
+
+def build_daylight(sun_azimuth, sun_elevation, hdri="studio_garden", strength=1.0, mirror=False, backplate=1.0,
+                   sun_colour=(1.0, 0.94, 0.88)):
+    """HDRI sky plus a sun lamp standing in for its (clamped) sun, at the same azimuth and energy."""
+    world = build_hdri_world(hdri, sun_azimuth, strength, mirror=mirror, backplate=backplate)
+    sun = build_sun(sun_azimuth, sun_elevation, strength=HDRIS[hdri]["sun_irradiance"] * strength, colour=sun_colour)
+    return world, sun
