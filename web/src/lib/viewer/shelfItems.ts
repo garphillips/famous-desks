@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { RoomEnvironment } from 'three/examples/jsm/environments/RoomEnvironment.js';
 import type { HotspotItem, ItemPatch } from '$lib/types';
 import { quad, toGeometry } from './cube';
 import { ROOM_TO_VIEWER, prefersReducedMotion, toViewerSpace, type Overlay, type PanoViewer } from './PanoViewer';
@@ -124,10 +125,15 @@ function face(tl: number[], tr: number[], bl: number[], br: number[]) {
 }
 
 export class ShelfItems implements Overlay {
-	scene = new THREE.Scene();
+	/** The empty slot and the dimmed room, then the book on top (see Overlay). */
+	private backdrop = new THREE.Scene();
+	private scene = new THREE.Scene();
+	scenes = [this.backdrop, this.scene];
+	private environment: THREE.Texture;
 	private books: Book[];
 	private loader = new THREE.TextureLoader();
 	private flight: Flight | null = null;
+	private key: THREE.DirectionalLight;
 
 	constructor(
 		private viewer: PanoViewer,
@@ -149,11 +155,16 @@ export class ShelfItems implements Overlay {
 				box: new THREE.Box3(new THREE.Vector3(-t / 2, -d / 2, 0), new THREE.Vector3(t / 2, d / 2, h))
 			};
 		});
-		this.scene.add(new THREE.HemisphereLight(0xfff4e6, 0x3a3226, 0.9));
-		const key = new THREE.DirectionalLight(0xfff1de, 2.2);
-		key.position.set(-1, 2, 1.5);
-		this.scene.add(key);
-		this.scene.add(key.target);
+		// soft studio light: a room environment for reflections and fill, plus a warm key
+		// from above the camera's left, so the cover reads bright against the dimmed room
+		const pmrem = new THREE.PMREMGenerator(viewer.gl);
+		this.environment = pmrem.fromScene(new RoomEnvironment(), 0.04).texture;
+		pmrem.dispose();
+		this.scene.environment = this.environment;
+		this.scene.environmentIntensity = 0.45;
+		this.scene.add(new THREE.HemisphereLight(0xfff6ea, 0x40382c, 0.7));
+		this.key = new THREE.DirectionalLight(0xfff1de, 1.9);
+		this.scene.add(this.key, this.key.target);
 	}
 
 	/** The book whose shelf box the ray from the viewpoint along `dir` hits first. */
@@ -205,8 +216,9 @@ export class ShelfItems implements Overlay {
 		);
 		dim.renderOrder = 0.5;
 		dim.frustumCulled = false;
-		this.scene.add(group, dim);
-		for (const p of patches) this.scene.add(p);
+		this.scene.add(group);
+		this.backdrop.add(dim);
+		for (const p of patches) this.backdrop.add(p);
 		this.flight = {
 			book,
 			group,
@@ -261,6 +273,7 @@ export class ShelfItems implements Overlay {
 
 	dispose() {
 		this.land();
+		this.environment.dispose();
 	}
 
 	private run(to: number) {
@@ -281,11 +294,11 @@ export class ShelfItems implements Overlay {
 			if (o instanceof THREE.Mesh) o.geometry.dispose();
 		});
 		for (const m of f.materials) m.dispose();
-		this.scene.remove(f.dim);
+		this.backdrop.remove(f.dim);
 		f.dim.geometry.dispose();
 		f.dim.material.dispose();
 		for (const p of f.patches) {
-			this.scene.remove(p);
+			this.backdrop.remove(p);
 			p.geometry.dispose();
 			p.material.uniforms.map.value?.dispose();
 			p.material.dispose();
@@ -321,6 +334,12 @@ export class ShelfItems implements Overlay {
 		}
 		f.group.position.copy(position);
 		f.group.quaternion.copy(quaternion);
+		const cam = this.viewer.view;
+		this.key.position.copy(position).add(
+			new THREE.Vector3(-0.6, 0.9, 0.8).applyQuaternion(cam.quaternion)
+		);
+		this.key.target.position.copy(position);
+		this.key.target.updateMatrixWorld();
 		const fade = clamp01(t / FADE_END);
 		for (const m of f.materials) {
 			m.opacity = fade;

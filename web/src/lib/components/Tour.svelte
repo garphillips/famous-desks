@@ -299,9 +299,21 @@
 	></canvas>
 
 	{#if focus}
+		<!-- A soft light breathing on each spine (screen-blended, so it brightens like light). -->
 		<svg class="outlines" class:dim={!!openItem} aria-hidden="true">
-			{#each outlines as o (o.item.slug)}
-				<polygon points={o.points} class:hover={hoverItem?.slug === o.item.slug} />
+			<defs>
+				<filter id="spine-glow" x="-100%" y="-50%" width="300%" height="200%">
+					<feGaussianBlur stdDeviation="9" />
+				</filter>
+				<filter id="spine-soft" x="-50%" y="-20%" width="200%" height="140%">
+					<feGaussianBlur stdDeviation="2" />
+				</filter>
+			</defs>
+			{#each outlines as o, i (o.item.slug)}
+				<g class:hover={hoverItem?.slug === o.item.slug} style="animation-delay: {i * -0.45}s">
+					<polygon class="bloom" points={o.points} filter="url(#spine-glow)" />
+					<polygon class="core" points={o.points} filter="url(#spine-soft)" />
+				</g>
 			{/each}
 		</svg>
 		{#if hoverItem}
@@ -431,26 +443,42 @@
 	.outlines.dim {
 		opacity: 0;
 	}
-	.outlines polygon {
-		fill: transparent;
-		stroke: var(--accent);
-		stroke-width: 2;
+	.outlines {
+		mix-blend-mode: screen;
+	}
+	.outlines g {
+		animation: breathe 2.2s ease-in-out infinite;
+		transition: opacity 160ms ease;
+	}
+	.outlines .bloom {
+		fill: #ffd28a;
+		stroke: #ffd28a;
+		stroke-width: 14;
 		stroke-linejoin: round;
-		opacity: 0.9;
-		filter: drop-shadow(0 0 5px rgba(216, 180, 110, 0.9));
-		animation: glow 2.4s ease-in-out infinite;
-		transition:
-			fill 160ms ease,
-			opacity 160ms ease;
 	}
-	.outlines polygon.hover {
-		fill: rgba(216, 180, 110, 0.18);
-		opacity: 1;
+	.outlines .core {
+		fill: rgba(255, 236, 200, 0.55);
+	}
+	.outlines g.hover {
 		animation: none;
+		opacity: 1;
 	}
-	@keyframes glow {
+	.outlines g.hover .core {
+		fill: rgba(255, 240, 214, 0.75);
+	}
+	@keyframes breathe {
+		0%,
+		100% {
+			opacity: 0.35;
+		}
 		50% {
-			opacity: 0.45;
+			opacity: 1;
+		}
+	}
+	@media (prefers-reduced-motion: reduce) {
+		.outlines g {
+			animation: none;
+			opacity: 0.6;
 		}
 	}
 	.book-label {

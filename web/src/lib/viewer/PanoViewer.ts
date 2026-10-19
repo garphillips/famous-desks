@@ -73,10 +73,12 @@ export interface ScreenPoint {
 /**
  * Extra 3D drawn over the panorama with the same camera (e.g. a book pulled off a shelf).
  * Positions are viewer space relative to the viewpoint, in metres: see toViewerSpace().
+ * Scenes draw in order, each with a fresh depth buffer, so a later scene is always in
+ * front of an earlier one (e.g. a backdrop, then the object over it).
  * update(now) runs every frame; returning true keeps frames coming (it is animating).
  */
 export interface Overlay {
-	scene: THREE.Scene;
+	scenes: THREE.Scene[];
 	update?: (now: number) => boolean;
 }
 
@@ -495,6 +497,11 @@ export class PanoViewer {
 	}
 
 	/** The live camera: at the origin of viewer space, looking along the view. */
+	/** The renderer, e.g. for overlays to prepare environment maps. */
+	get gl() {
+		return this.renderer;
+	}
+
 	get view() {
 		return this.camera;
 	}
@@ -847,8 +854,10 @@ export class PanoViewer {
 		if (this.incoming.source && this.incoming.opacity.value > 0)
 			this.drawLayer(this.incoming, this.camera, this.fov * this.incoming.zoom);
 		for (const overlay of this.overlays) {
-			this.renderer.clearDepth();
-			this.renderer.render(overlay.scene, this.camera);
+			for (const scene of overlay.scenes) {
+				this.renderer.clearDepth();
+				this.renderer.render(scene, this.camera);
+			}
 		}
 	}
 
