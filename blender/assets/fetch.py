@@ -72,6 +72,9 @@ def fetch(asset_id, entry, check_only):
     os.makedirs(folder, exist_ok=True)
     for f in missing:
         dest = os.path.join(folder, f["name"])
+        if not os.path.realpath(dest).startswith(os.path.realpath(folder) + os.sep):
+            sys.exit(f"{asset_id}: unsafe file name {f['name']!r}")
+        os.makedirs(os.path.dirname(dest), exist_ok=True)
         print(f"fetching {asset_id}/{f['name']}")
         req = urllib.request.Request(f["url"], headers={"User-Agent": "office-tour-asset-fetch/1"})
         with urllib.request.urlopen(req, timeout=120) as r, open(dest + ".part", "wb") as out:
