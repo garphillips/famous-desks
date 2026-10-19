@@ -458,6 +458,6 @@ def build_tour(c):
 
     # Matches "Upscaled facing south.png" (looks north at the desk) and
     # "upscaled facing north.png" (looks west at the bookshelf)
-    tour.reference_camera("ref_desk_photo", (0.4, -1.95, 1.75), (-0.2, D / 2, 0.75))
+    tour.reference_camera("ref_desk_photo", (0.4, -1.95, 1.75), (-0.2, D / 2, 0.2), lens=18)
     tour.reference_camera("ref_bookshelf_photo", (2.6, 0.2, 1.5), (-W / 2, 0.5, 1.0))
     tour.plan_camera(W, D)
