@@ -38,7 +38,6 @@ LEAF_ASPECT = 0.716  # rectangle width / height (pixels)
 TREES = {
     "small": ("ph_tree_small_02", "tree_small_02_1k.gltf", 0.34, 0.65),
     "island": ("ph_island_tree_01", "island_tree_01_1k.gltf", 0.5, 0.6),
-    "jacaranda": ("ph_jacaranda_tree", "jacaranda_tree_1k.gltf", 0.62, 0.62),
 }
 
 
@@ -498,8 +497,7 @@ def build_garden(mats, footprint, sides="NE", sun_azimuth=75.0, sun_elevation=25
         for t in np.arange(-half - 9, half + 9, 4.5):
             for _ in range(4):
                 kind = ("small", "island")[rng.choice(2, p=(0.45, 0.55))]
-                h = {"small": rng.uniform(4.0, 5.5), "island": rng.uniform(5.5, 7.5),
-                     "jacaranda": rng.uniform(8.5, 11.0)}[kind]
+                h = {"small": rng.uniform(4.0, 5.5), "island": rng.uniform(5.5, 7.5)}[kind]
                 out = rng.uniform(4.5, 8.0) if kind == "small" else rng.uniform(9.0, hedge_out - 2.0)
                 p = o + a * (t + rng.uniform(-1.5, 1.5)) + n * out
                 r = TREES[kind][2] * h
