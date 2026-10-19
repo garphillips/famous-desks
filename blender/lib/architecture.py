@@ -12,6 +12,7 @@ Floorboard attributes (point domain, FLOAT, one value per board piece) for the
 floor material:
     board_id    0, 1, 2, ... per piece (whole numbers)
     board_rand  0..1 random per piece
+    board_along_x  1 where boards run east-west (along x), 0 north-south
 """
 
 import math
@@ -175,11 +176,11 @@ def _breaks(fixed, lo, hi, step, keep=0.08):
     return sorted(out)
 
 
-def _board_edges(x0, x1):
-    """Board edges across the floor: about 19 cm boards with gently varying widths.
+def _board_edges(x0, x1, width=0.19):
+    """Board edges across the floor: boards about `width` wide, gently varying.
     The floor material shades each board from its board_id/board_rand attributes."""
     def f(x):
-        return x / 0.19 + 0.22 * math.sin(1.9 * x) + 0.13 * math.sin(4.3 * x + 1.0)
+        return x / width + 0.22 * math.sin(1.9 * x) + 0.13 * math.sin(4.3 * x + 1.0)
 
     edges = [x0]
     for k in range(math.ceil(f(x0)), math.floor(f(x1)) + 1):
@@ -624,15 +625,26 @@ class Room:
     # --- floor, ceiling, beams ----------------------------------------------
 
     def build_floor(self):
-        """Floorboards running north-south: one piece per board length, chamfered top
-        edges, gaps, staggered ends and tiny height/roll/yaw differences."""
+        """Floorboards: one piece per board length, chamfered top edges, gaps, staggered
+        ends and tiny height/roll/yaw differences. The spec's "floor" sets the direction
+        boards run ("Y" north-south, the default, or "X" east-west) and their width."""
         w, d, t = self.w, self.d, self.t
+        spec = self.spec.get("floor", {})
+        run_x = spec.get("run", "Y") == "X"
         rng = random.Random(5)
         b = Builder()
         bid = b.bm.verts.layers.float.new("board_id")
         brand = b.bm.verts.layers.float.new("board_rand")
-        y0, y1 = -d / 2 - t, d / 2 + t
-        edges = _board_edges(-w / 2 - t, w / 2 + t)
+        balong = b.bm.verts.layers.float.new("board_along_x")
+
+        # Lay boards out in (across, along) and rotate into the room, so east-west
+        # boards are a true rotation of north-south ones (a mirror would flip normals).
+        def place(a, l, z):
+            return Vector((l, -a, z)) if run_x else Vector((a, l, z))
+
+        x_ext, y_ext = (-w / 2 - t, w / 2 + t), (-d / 2 - t, d / 2 + t)
+        across, (y0, y1) = (y_ext, x_ext) if run_x else (x_ext, y_ext)
+        edges = _board_edges(*across, width=spec.get("board_width", 0.19))
         c = 0.0015
         n = 0
         for xa, xb in zip(edges, edges[1:]):
@@ -645,16 +657,15 @@ class Room:
                 pa, pb = max(ya, y0), min(yb, y1)
                 if pb - pa > 0.05:
                     roll = rng.uniform(-1, 1) * 0.0016
-                    u = Vector((math.cos(roll), 0, math.sin(roll)))
-                    v = Vector((-math.sin(roll), 0, math.cos(roll)))
+                    cr, sr = math.cos(roll), math.sin(roll)
                     rings = []
                     for yy in (pa + FLOOR_GAP / 2, pb - FLOOR_GAP / 2):
-                        o = Vector(((xa + xb) / 2 + rng.uniform(-1, 1) * 0.0004, yy, rng.uniform(-0.0007, 0.0002)))
-                        rings.append([o + u * pu + v * pv for pu, pv in prof])
+                        oa, oz = (xa + xb) / 2 + rng.uniform(-1, 1) * 0.0004, rng.uniform(-0.0007, 0.0002)
+                        rings.append([place(oa + cr * pu - sr * pv, yy, oz + sr * pu + cr * pv) for pu, pv in prof])
                     r = rng.random()
                     for ring in _loft(b, rings, self.mats["floor"]):
                         for vert in ring:
-                            vert[bid], vert[brand] = float(n), r
+                            vert[bid], vert[brand], vert[balong] = float(n), r, float(run_x)
                     n += 1
                 ya = yb
         b.box((w + 2 * t, d + 2 * t, 0.02), (0, 0, -FLOOR_T - 0.01), self.mats["arch_void"])

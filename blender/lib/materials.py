@@ -496,9 +496,9 @@ def floorboards(name="floorboards"):
     r1, r2, r3 = b["r"]
 
     # plain-sawn grain: rings around a log axis set back from the board face
-    gy = g.math("ADD", x, g.math("MULTIPLY", r1, 0.5))
+    gy = g.math("ADD", b["across"], g.math("MULTIPLY", r1, 0.5))
     gz = g.math("ADD", 0.06, g.math("MULTIPLY", r2, 0.25))
-    gx = g.math("ADD", g.math("MULTIPLY", y, b["flip"]), g.math("MULTIPLY", r3, 40.0))
+    gx = g.math("ADD", g.math("MULTIPLY", b["along"], b["flip"]), g.math("MULTIPLY", r3, 40.0))
     band, pores = _grain(g, gx, gy, gz, rings_per_m=110.0, pore_scale=1.0)
 
     tone = g.mix(r_piece, (0.30, 0.135, 0.045), (0.46, 0.235, 0.09))
@@ -520,10 +520,15 @@ def floorboards(name="floorboards"):
 
 def _board_attrs(g):
     """Per-board values from the floorboard geometry (see lib.architecture): world x/y,
-    board_rand, three more randoms hashed from board_id, a +-1 flip (each board's
-    figure runs one way or the other, i.e. turned 180 degrees) and 'side', 1 on the
-    board sides and ends down in the real gaps (and a little on the chamfers)."""
+    'along'/'across' (world position along and across the board, whichever way the
+    room's boards run), board_rand, three more randoms hashed from board_id, a +-1 flip
+    (each board's figure runs one way or the other, i.e. turned 180 degrees) and
+    'side', 1 on the board sides and ends down in the real gaps (and a little on the
+    chamfers)."""
     x, y, _ = g.sep(g.position())
+    _, run_x = g.attr("board_along_x")
+    along = g.math("ADD", y, g.math("MULTIPLY", run_x, g.math("SUBTRACT", x, y)))
+    across = g.math("ADD", x, g.math("MULTIPLY", run_x, g.math("SUBTRACT", y, x)))
     _, bid = g.attr("board_id")
     _, brand = g.attr("board_rand")
     _, rc = g.white(g.vec(bid, 7.0, 0.0))
@@ -531,7 +536,8 @@ def _board_attrs(g):
     flip = g.math("SUBTRACT", 1.0, g.math("MULTIPLY", g.math("GREATER_THAN", r3, 0.5), 2.0))
     _, _, nz = g.sep(g.normal())
     side = g.map(nz, 0.55, 0.97, 0.85, 0.0)
-    return {"x": x, "y": y, "id": bid, "rand": brand, "r": (r1, r2, r3), "flip": flip, "side": side}
+    return {"x": x, "y": y, "along": along, "across": across, "id": bid, "rand": brand,
+            "r": (r1, r2, r3), "flip": flip, "side": side}
 
 
 def _grain(g, gx, gy, gz, rings_per_m=90.0, pore_scale=1.0):
@@ -930,9 +936,9 @@ def floor_scan(name="floorboards"):
     mat, g, bsdf = _new(name, (0.36, 0.17, 0.06))
     b = _board_attrs(g)
     r1, r2, r3 = b["r"]
-    # u along the board (world y), v across (world x); random strip, either way round
-    u = g.math("DIVIDE", g.math("ADD", g.math("MULTIPLY", b["y"], b["flip"]), g.math("MULTIPLY", r3, 40.0)), 2.0)
-    v = g.math("DIVIDE", g.math("ADD", g.math("MULTIPLY", b["x"], b["flip"]), g.math("MULTIPLY", r1, 7.3)), 2.0)
+    # u along the board, v across; random strip, either way round
+    u = g.math("DIVIDE", g.math("ADD", g.math("MULTIPLY", b["along"], b["flip"]), g.math("MULTIPLY", r3, 40.0)), 2.0)
+    v = g.math("DIVIDE", g.math("ADD", g.math("MULTIPLY", b["across"], b["flip"]), g.math("MULTIPLY", r1, 7.3)), 2.0)
     col_t, r_t, h_t = _scan(g, FLOOR_WOOD, g.vec(u, v, 0.0))
     tone = g.map(b["rand"], 0.0, 1.0, 0.78, 1.22)
     tone = g.math("MULTIPLY", tone, g.map(r2, 0.85, 1.0, 1.0, 1.2))  # a few pale boards

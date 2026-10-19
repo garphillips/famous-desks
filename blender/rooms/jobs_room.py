@@ -58,6 +58,7 @@ SPEC = {
     "depth": D,
     "height": 2.75,
     "wall_thickness": 0.42,
+    "floor": {"run": "X", "board_width": 0.285},  # east-west boards, about 28 cm wide
     "ceiling": {"joist_axis": "X", "joist_spacing": 0.55, "joist_depth": 0.2, "cross_beams": [-2.3]},
     "walls": {
         "N": {"finish": "brick_x", "openings": [
