@@ -727,7 +727,9 @@ BOOK_COLOURS = [
 
 
 def book_materials():
-    return [book(f"book_{i:02d}", c) for i, c in enumerate(BOOK_COLOURS)]
+    """Cover, page and shelf-prop materials for lib.books (defined there)."""
+    from .books import materials as book_set
+    return book_set()
 
 
 # ----------------------------------------------------------------------------
