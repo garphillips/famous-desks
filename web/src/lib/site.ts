@@ -1,6 +1,6 @@
-/** Site-wide settings. The overall site name isn't decided yet; until it is,
- *  the wordmark shows the current space's name instead. */
+/** Site-wide settings. The wordmark shows the site name (the current space's name
+ *  when it is empty). */
 export const site = {
-	name: '',
+	name: 'Famous Desks',
 	tagline: 'Virtual office tour'
 };

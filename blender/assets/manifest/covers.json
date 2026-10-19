@@ -1,0 +1,47 @@
+{
+  "cover_autobiography_of_a_yogi": {
+    "kind": "cover",
+    "title": "Autobiography of a Yogi (cover)",
+    "source": "Open Library",
+    "page": "https://openlibrary.org/works/OL528094W",
+    "author": "Publisher's cover art",
+    "license": "cover-art",
+    "files": [{"url": "https://covers.openlibrary.org/b/id/805448-L.jpg", "name": "cover.jpg"}]
+  },
+  "cover_king_lear": {
+    "kind": "cover",
+    "title": "King Lear, 1608 quarto title page (cover)",
+    "source": "Open Library",
+    "page": "https://openlibrary.org/works/OL259026W",
+    "author": "Publisher's cover art",
+    "license": "cover-art",
+    "files": [{"url": "https://covers.openlibrary.org/b/id/7420452-L.jpg", "name": "cover.jpg"}]
+  },
+  "cover_dylan_thomas_collected_poems": {
+    "kind": "cover",
+    "title": "The Collected Poems of Dylan Thomas, New Directions (cover)",
+    "source": "Open Library",
+    "page": "https://openlibrary.org/works/OL1358813W",
+    "author": "Publisher's cover art",
+    "license": "cover-art",
+    "files": [{"url": "https://covers.openlibrary.org/b/id/597906-L.jpg", "name": "cover.jpg"}]
+  },
+  "cover_1984": {
+    "kind": "cover",
+    "title": "Nineteen Eighty-Four, Penguin 1959 (cover)",
+    "source": "Open Library",
+    "page": "https://openlibrary.org/works/OL1168083W",
+    "author": "Publisher's cover art",
+    "license": "cover-art",
+    "files": [{"url": "https://covers.openlibrary.org/b/id/15256090-L.jpg", "name": "cover.jpg"}]
+  },
+  "cover_innovators_dilemma": {
+    "kind": "cover",
+    "title": "The Innovator's Dilemma (cover)",
+    "source": "Open Library",
+    "page": "https://openlibrary.org/works/OL1999873W",
+    "author": "Publisher's cover art",
+    "license": "cover-art",
+    "files": [{"url": "https://covers.openlibrary.org/b/id/9274687-L.jpg", "name": "cover.jpg"}]
+  }
+}

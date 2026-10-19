@@ -61,6 +61,51 @@ export interface HotspotDetail {
 	model?: string;
 }
 
+/** Clicking a hotspot with a focus moves to `viewpoint` and zooms in, where its items can be picked. */
+export interface HotspotFocus {
+	viewpoint: string;
+	yaw: number;
+	pitch: number;
+	/** Vertical field of view to zoom to, degrees. */
+	fov: number;
+}
+
+/** The focus viewpoint's panorama with an item taken out, for where it leaves its slot. */
+export interface ItemPatch {
+	viewpoint: string;
+	face: 'n' | 'e' | 's' | 'w' | 'u' | 'd';
+	/** Face size in px the rect is measured at. */
+	faceSize: number;
+	/** x, y, width, height in face px (top-left origin); padded by a few px for feathering. */
+	rect: [number, number, number, number];
+	image: string;
+}
+
+/**
+ * A featured book on a shelf (blender/lib/featured.py). Its own axes, as in Blender: x across
+ * the thickness (front cover at +x), y the depth (spine at -y), z up, origin at the middle of
+ * the bottom. Paths are relative to the space folder.
+ */
+export interface HotspotItem {
+	slug: string;
+	title: string;
+	author: string;
+	summary: string;
+	kind: 'paperback' | 'hardback';
+	cover: string;
+	spine: string;
+	coverAspect: number;
+	coverColour: string;
+	spineColour: string;
+	/** Thickness, height, width (m). */
+	size: [number, number, number];
+	/** Room metres (x east, y north, z up). */
+	position: [number, number, number];
+	/** Quaternion w, x, y, z in room axes. */
+	rotation: [number, number, number, number];
+	patches: ItemPatch[];
+}
+
 export interface Hotspot {
 	slug: string;
 	title: string;
@@ -78,6 +123,9 @@ export interface Hotspot {
 	targetTitle?: string;
 	/** Close-ups and 3D model, when the space has them. */
 	detail?: HotspotDetail;
+	/** Zoom-in target, for hotspots whose items can be picked (e.g. books on a shelf). */
+	focus?: HotspotFocus;
+	items?: HotspotItem[];
 }
 
 export interface FloorPlan {

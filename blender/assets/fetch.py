@@ -10,12 +10,12 @@ manifests (sources, licences, credits) are committed.
 Manifest format (one file per area of work, e.g. textures.json):
     {
       "oak_floor": {
-        "kind": "texture",               # texture | model | hdri
+        "kind": "texture",               # texture | model | hdri | cover
         "title": "Oak floor 01",
         "source": "Poly Haven",
         "page": "https://polyhaven.com/a/...",
         "author": "...",
-        "license": "CC0",                # must be in ALLOWED_LICENSES
+        "license": "CC0",                # ALLOWED_LICENSES, or KIND_LICENSES for its kind
         "files": [{"url": "https://...", "name": "oak_floor_diff_2k.jpg"}]
       }
     }
@@ -33,6 +33,8 @@ import zipfile
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 ALLOWED_LICENSES = {"CC0", "CC-BY-4.0"}
+# Book covers are the publishers' artwork, shown only to identify the book (kind "cover").
+KIND_LICENSES = {"cover": {"cover-art"}}
 CACHE = os.environ.get(
     "OFFICE_TOUR_ASSETS", os.path.expanduser("~/Library/Caches/office-tour/assets")
 )
@@ -70,8 +72,9 @@ def safe_extract(zip_path, dest):
 
 
 def fetch(asset_id, entry, check_only):
-    if entry.get("license") not in ALLOWED_LICENSES:
-        sys.exit(f"{asset_id}: licence {entry.get('license')!r} not allowed ({sorted(ALLOWED_LICENSES)})")
+    allowed = ALLOWED_LICENSES | KIND_LICENSES.get(entry.get("kind"), set())
+    if entry.get("license") not in allowed:
+        sys.exit(f"{asset_id}: licence {entry.get('license')!r} not allowed ({sorted(allowed)})")
     folder = os.path.join(CACHE, asset_id)
     missing = [f for f in entry["files"] if not os.path.exists(os.path.join(folder, f["name"]))]
     if not missing:

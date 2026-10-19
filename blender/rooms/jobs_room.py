@@ -21,7 +21,7 @@ import random
 import bpy
 from mathutils import Matrix, Vector
 
-from lib import architecture, books, clutter, desk, environment, furniture as f, hero, imported, materials, tour
+from lib import architecture, books, clutter, desk, environment, featured, furniture as f, hero, imported, materials, tour
 from lib.geo import collection
 
 W, D = 6.4, 4.3
@@ -153,6 +153,51 @@ def build_bookshelf(c):
                       mat="plastic_black", rot_z=math.pi / 2 + 0.03)
     books.storage_box(m, props, "shelf_top_box_cream", (-W / 2 + 0.18, 0.95, top), (0.32, 0.26, 0.12),
                       mat="cardboard", rot_z=math.pi / 2 - 0.04)
+    featured.place_books("jobs-room", "bookshelf", FEATURED_BOOKS, c.books, hotspot="bookshelf")
+
+
+# Real books on the shelf: pulled out on the website (lib/featured.py). size is
+# (thickness, height, width) in metres; near is a point on the shelf to stand close to
+# (front of the shelf at x = -2.86, boards at z 0.82 / 1.16 / 1.48); spine is the artwork
+# for web/scripts/book-art.mjs.
+SHELF_FRONT = -2.95
+FEATURED_BOOKS = [
+    dict(slug="autobiography-of-a-yogi", title="Autobiography of a Yogi", author="Paramahansa Yogananda",
+         spineAuthor="Yogananda", cover="cover_autobiography_of_a_yogi", kind="paperback",
+         size=(0.034, 0.216, 0.14), near=(SHELF_FRONT, 0.3, 1.19),
+         spine=dict(bg="#2f6fc0", fg="#ffffff", font="Futura", weight="bold", upper=True, scale=0.34),
+         summary="Yogananda's 1946 memoir of his search for a guru in India and his decades teaching "
+                 "meditation in America. Jobs first read it as a teenager and reread it every year; it "
+                 "was reportedly the only book he downloaded to his iPad."),
+    dict(slug="king-lear", title="King Lear", author="William Shakespeare", spineAuthor="Shakespeare",
+         cover="cover_king_lear", kind="paperback", size=(0.022, 0.198, 0.129), near=(SHELF_FRONT, 0.4, 1.51),
+         spine=dict(bg="#e8d9b0", fg="#1d1a14", font="Baskerville", scale=0.5, titleSpan=[0.1, 0.5]),
+         summary="Shakespeare's tragedy of an ageing king who divides his kingdom between the daughters "
+                 "who flatter him best, and loses everything. Jobs named it among the books that shaped "
+                 "him at Reed College."),
+    dict(slug="dylan-thomas-collected-poems", title="Collected Poems", author="Dylan Thomas",
+         cover="cover_dylan_thomas_collected_poems", kind="hardback", size=(0.026, 0.222, 0.145),
+         near=(SHELF_FRONT, 0.4, 0.85),
+         spine=dict(bg="#efece4", fg="#222222", font="Gill Sans", upper=True, scale=0.36,
+                    titleSpan=[0.42, 0.94], authorSpan=[0.06, 0.38]),
+         summary="The poet's own selection of his work from 1934 to 1952, including \u201cFern Hill\u201d "
+                 "and \u201cDo not go gentle into that good night\u201d. Jobs read and recited Dylan Thomas "
+                 "in his late teens."),
+    dict(slug="nineteen-eighty-four", title="Nineteen Eighty-Four", author="George Orwell", spineAuthor="Orwell",
+         cover="cover_1984", kind="paperback", size=(0.02, 0.181, 0.111), near=(SHELF_FRONT, -0.04, 1.51),
+         spine=dict(bg="#f1ece0", fg="#1a1a1a", font="Gill Sans", weight="bold", upper=True, scale=0.36,
+                    bands=[[0, 0.22, "#e2522b"], [0.78, 1, "#e2522b"]], titleSpan=[0.24, 0.6],
+                    authorSpan=[0.62, 0.76]),
+         summary="Orwell's 1949 novel of Oceania, where Big Brother is always watching and the Party "
+                 "rewrites the truth. Apple borrowed its imagery for the Ridley Scott ad that launched the "
+                 "Macintosh in January 1984."),
+    dict(slug="the-innovators-dilemma", title="The Innovator\u2019s Dilemma", author="Clayton M. Christensen",
+         spineAuthor="Christensen", cover="cover_innovators_dilemma", kind="paperback",
+         size=(0.022, 0.229, 0.152), near=(SHELF_FRONT, -0.3, 1.19),
+         spine=dict(bg="#111111", fg="#c9d64a", accent="#ffffff", font="Futura", weight="bold", scale=0.4),
+         summary="Christensen's 1997 study of why well-run companies lose to cheaper, simpler newcomers: "
+                 "by listening too closely to their best customers. Jobs said it deeply influenced him."),
+]
 
 
 def build_desk(c):
@@ -426,13 +471,15 @@ def build_tour(c):
     """Viewpoints, hotspots, close-up cameras and reference cameras."""
     lx, ly = LAMP
     tour.viewpoint("office", "Office", (0.35, -1.65), 0, look_at=(DESK_X, WALL))
-    tour.viewpoint("bookshelf", "Bookshelf", (-1.25, 0.3), 1, look_at=(-W / 2, 0.3))
+    # sharper (4096 px faces) so the featured books' spines read when zoomed in
+    tour.viewpoint("bookshelf", "Bookshelf", (-1.25, 0.3), 1, look_at=(-W / 2, 0.3), face_size=4096)
     tour.viewpoint("desk", "Desk", (0.95, 0.55), 2, look_at=(DESK_X, WALL))
     tour.viewpoint("window", "Window", (2.15, -1.05), 3, look_at=(W / 2, E_WINDOW[0]))
     tour.viewpoint("entrance", "Entrance", (DOOR[0], -D / 2 + 0.6), 4, look_at=(DESK_X, WALL))
 
     tour.hotspot("bookshelf", "Bookshelf", (-W / 2 + 0.2, BOOKSHELF[0], 1.65), icon="info",
-                 summary="Explore the collection of books, cameras and creative tools.")
+                 summary="Explore the collection of books, cameras and creative tools.",
+                 focus=dict(viewpoint="bookshelf", target=(SHELF_FRONT, 0.2, 1.25), fov=42))
     tour.hotspot("display", "The display", (DISPLAY_LOC[0], DISPLAY_LOC[1], 1.3), model="display")
     tour.hotspot("print", "The print", (DESK_X, WALL - 0.05, 2.25), icon="info")
     tour.hotspot("camera", "Camera", (CAMERA_LOC[0], CAMERA_LOC[1], 0.55), model="camera")

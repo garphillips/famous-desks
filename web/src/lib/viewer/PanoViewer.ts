@@ -70,6 +70,24 @@ export interface ScreenPoint {
 	visible: boolean;
 }
 
+/**
+ * Extra 3D drawn over the panorama with the same camera (e.g. a book pulled off a shelf).
+ * Positions are viewer space relative to the viewpoint, in metres: see toViewerSpace().
+ * update(now) runs every frame; returning true keeps frames coming (it is animating).
+ */
+export interface Overlay {
+	scene: THREE.Scene;
+	update?: (now: number) => boolean;
+}
+
+/** Room axes (x east, y north, z up) to viewer axes (+X north, +Y up, +Z east). */
+export const ROOM_TO_VIEWER = new THREE.Matrix4().set(0, 1, 0, 0, 0, 0, 1, 0, 1, 0, 0, 0, 0, 0, 0, 1);
+
+/** A room-space point relative to the viewpoint at `origin`, in viewer space. */
+export function toViewerSpace([x, y, z]: number[], origin: number[], out = new THREE.Vector3()) {
+	return out.set(y - origin[1], z - origin[2], x - origin[0]);
+}
+
 export function direction(yaw: number, pitch: number) {
 	const y = THREE.MathUtils.degToRad(yaw);
 	const p = THREE.MathUtils.degToRad(pitch);
@@ -216,13 +234,20 @@ export class PanoViewer {
 	private resizeObserver: ResizeObserver;
 	private onChange: () => void;
 	private onInteract: () => void;
+	private onTap: (e: PointerEvent) => void;
+	private overlays = new Set<Overlay>();
 
 	constructor(
 		private canvas: HTMLCanvasElement,
-		{ onChange, onInteract = () => {} }: { onChange: () => void; onInteract?: () => void }
+		{
+			onChange,
+			onInteract = () => {},
+			onTap = () => {}
+		}: { onChange: () => void; onInteract?: () => void; onTap?: (e: PointerEvent) => void }
 	) {
 		this.onChange = onChange;
 		this.onInteract = onInteract;
+		this.onTap = onTap;
 		this.renderer = new THREE.WebGLRenderer({ canvas, antialias: false });
 		this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
 		this.renderer.outputColorSpace = THREE.SRGBColorSpace;
@@ -435,6 +460,62 @@ export class PanoViewer {
 		);
 		this.draw();
 		return out.toDataURL('image/jpeg', 0.85);
+	}
+
+	/** Turns and zooms to a view over `ms`; resolves false if something else took over. */
+	async zoomTo(yaw: number, pitch: number, fov: number, ms = 700) {
+		if (this.busy) return false;
+		this.inertia = null;
+		const from = { yaw: this.yaw, pitch: this.pitch, fov: this.fov };
+		const turn = wrap(yaw - from.yaw);
+		const to = THREE.MathUtils.clamp(fov, MIN_FOV, MAX_FOV);
+		const token = this.token;
+		await this.animate(prefersReducedMotion() ? 0 : ms, (t) => {
+			const e = easeInOut(t);
+			this.yaw = from.yaw + turn * e;
+			this.pitch = THREE.MathUtils.lerp(from.pitch, pitch, e);
+			this.fov = THREE.MathUtils.lerp(from.fov, to, e);
+		});
+		return token === this.token;
+	}
+
+	addOverlay(overlay: Overlay) {
+		this.overlays.add(overlay);
+		this.invalidate();
+	}
+
+	removeOverlay(overlay: Overlay) {
+		this.overlays.delete(overlay);
+		this.invalidate();
+	}
+
+	/** Redraw on the next frame (e.g. an overlay changed). */
+	requestFrame() {
+		this.invalidate();
+	}
+
+	/** The live camera: at the origin of viewer space, looking along the view. */
+	get view() {
+		return this.camera;
+	}
+
+	/** Direction (viewer space, unit) through a point on the canvas (client px). */
+	pointerDirection(clientX: number, clientY: number) {
+		const r = this.canvas.getBoundingClientRect();
+		const ndc = new THREE.Vector3(((clientX - r.left) / r.width) * 2 - 1, -((clientY - r.top) / r.height) * 2 + 1, 0.5);
+		return ndc.unproject(this.camera).normalize();
+	}
+
+	/** Screen position (CSS px) of a point in viewer space. */
+	projectPoint(p: THREE.Vector3): ScreenPoint {
+		const forward = this.camera.getWorldDirection(new THREE.Vector3());
+		const ndc = p.clone().project(this.camera);
+		const { clientWidth: w, clientHeight: h } = this.canvas;
+		return {
+			x: ((ndc.x + 1) / 2) * w,
+			y: ((1 - ndc.y) / 2) * h,
+			visible: p.dot(forward) > 0
+		};
 	}
 
 	lookAt(yaw: number, pitch = 0) {
@@ -735,6 +816,8 @@ export class PanoViewer {
 			this.invalidate();
 		}
 
+		for (const overlay of this.overlays) if (overlay.update?.(now)) this.invalidate();
+
 		if (!this.dirty) return;
 		this.dirty = false;
 		this.pitch = THREE.MathUtils.clamp(this.pitch, -MAX_PITCH, MAX_PITCH);
@@ -763,6 +846,10 @@ export class PanoViewer {
 		if (this.current.source) this.drawLayer(this.current, this.camera, this.fov * this.current.zoom);
 		if (this.incoming.source && this.incoming.opacity.value > 0)
 			this.drawLayer(this.incoming, this.camera, this.fov * this.incoming.zoom);
+		for (const overlay of this.overlays) {
+			this.renderer.clearDepth();
+			this.renderer.render(overlay.scene, this.camera);
+		}
 	}
 
 	/**
@@ -864,6 +951,9 @@ export class PanoViewer {
 		if (this.canvas.hasPointerCapture(e.pointerId)) this.canvas.releasePointerCapture(e.pointerId);
 		if (this.pointers.size < 2) this.pinch = null;
 		if (this.pointers.size > 0) return;
+
+		const moved = Math.hypot(e.clientX - p.startX, e.clientY - p.startY);
+		if (e.type === 'pointerup' && !this.pinched && moved < DRAG_THRESHOLD) this.onTap(e);
 
 		const fresh = e.timeStamp - this.velocity.time < 80;
 		const speed = Math.hypot(this.velocity.yaw, this.velocity.pitch);

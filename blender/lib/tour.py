@@ -25,8 +25,9 @@ def _camera(name, col, loc):
     return obj
 
 
-def viewpoint(slug, title, xy, order, look_at=None, height=EYE_HEIGHT, res=(4096, 2048)):
-    """look_at: (x, y) the view initially faces on the website."""
+def viewpoint(slug, title, xy, order, look_at=None, height=EYE_HEIGHT, res=(4096, 2048), face_size=None):
+    """look_at: (x, y) the view initially faces on the website. face_size: cube face px
+    for this viewpoint, instead of export.py's --face-size (e.g. sharper where people zoom in)."""
     cam = _camera(f"vp_{slug}", collection("Viewpoints"), (xy[0], xy[1], height))
     cam.data.type = "PANO"
     cam.data.panorama_type = "EQUIRECTANGULAR"
@@ -38,6 +39,8 @@ def viewpoint(slug, title, xy, order, look_at=None, height=EYE_HEIGHT, res=(4096
     cam["res"] = res
     if look_at:
         cam["look_at"] = look_at
+    if face_size:
+        cam["face_size"] = face_size
     return cam
 
 
@@ -108,8 +111,11 @@ def remove_cube_face_camera():
 def hotspot(slug, title, loc, icon="eye", summary="", kind="hotspot", **extra):
     """icon: 'eye' (look closer) or 'info'. kind: 'hotspot' or 'door' (links to another space).
 
-    extra: e.g. target='<space>' for doors, or model='<object name>' to export
-    that object as details/<slug>/model.glb for the 3D view.
+    extra: e.g. target='<space>' for doors, model='<object name>' to export
+    that object as details/<slug>/model.glb for the 3D view, or
+    focus=dict(viewpoint=<slug>, target=(x, y, z), fov=<degrees>): clicking the hotspot
+    moves to that viewpoint and zooms in on the target, where the hotspot's items
+    (objects tagged item_of=<slug>, e.g. lib/featured.py's books) can be picked.
     """
     empty = bpy.data.objects.new(f"hs_{slug}", None)
     empty.empty_display_type = "SPHERE"

@@ -11,11 +11,14 @@ Writes content/spaces/<slug>/:
     plan.webp           top-down floor plan for the minimap
     details/<hotspot>/closeup-<n>.webp   close-up renders from the hotspot's detail cameras
     details/<hotspot>/model.glb          the hotspot's `model` object, for the 3D view
+    details/<hotspot>/items/<item>/      a featured item (lib/featured.py): cover.webp, spine.webp,
+                                         and patch-<face>.webp: the focus viewpoint's panorama with
+                                         the item taken out, for where it leaves its slot
 and updates content/spaces/index.json (the list of all spaces).
 
 Panoramas are rendered as six 90° perspective cube faces (--face-size px square, default
 2560 ~ the sharpness of an 8192x4096 equirect: 8192/pi) into blender/build/cube/<slug>/<vp>/,
-then web/scripts/tile-pano.mjs (Node + sharp; needs `npm ci` in web/) cuts them into 512 px
+(or the viewpoint's own face_size), then web/scripts/tile-pano.mjs (Node + sharp; needs `npm ci` in web/) cuts them into 512 px
 WebP tiles at q85 per level (512, 1024, 2048, 2560), a 6x256 preview strip, and reprojects
 the 4096 equirect fallback. Tiling runs in the background while the next viewpoint renders.
 """
@@ -131,6 +134,77 @@ def export_model(obj, path):
     bpy.data.objects.remove(copy)
     bpy.data.meshes.remove(mesh)
     print(f"Wrote {path} ({os.path.getsize(path) / 1e6:.2f} MB)")
+
+
+PATCH_PAD = 24  # px around an item's footprint on a face, for the website to feather
+
+
+def item_patches(vp, obj, size):
+    """Where `obj` appears on the cube faces of viewpoint `vp` at `size` px:
+    {face: [x, y, w, h]} pixel rectangles (top-left origin), padded and clipped."""
+    origin = vp.matrix_world.translation
+    corners = [obj.matrix_world @ Vector(c) - origin for c in obj.bound_box]
+    out = {}
+    for face, (f, r, u) in CUBE_FACES.items():
+        f, r, u = Vector(f), Vector(r), Vector(u)
+        if any(c.dot(f) <= 0.01 for c in corners):
+            continue
+        xs = [(c.dot(r) / c.dot(f) + 1) / 2 * size for c in corners]
+        ys = [(1 - c.dot(u) / c.dot(f)) / 2 * size for c in corners]
+        x0, x1 = max(0, math.floor(min(xs)) - PATCH_PAD), min(size, math.ceil(max(xs)) + PATCH_PAD)
+        y0, y1 = max(0, math.floor(min(ys)) - PATCH_PAD), min(size, math.ceil(max(ys)) + PATCH_PAD)
+        if x1 - x0 > PATCH_PAD and y1 - y0 > PATCH_PAD:
+            out[face] = [x0, y0, x1 - x0, y1 - y0]
+    return out
+
+
+def render_patches(scene, vp, items, out, size, quality=92):
+    """For each item: the viewpoint's cube faces where it shows, re-rendered without it,
+    cropped to its rectangle (details/<hotspot>/items/<item>/patch-<face>.webp)."""
+    render = scene.render
+    try:
+        for obj in items:
+            folder = os.path.join(out, "details", obj["item_of"], "items", obj["item"])
+            os.makedirs(folder, exist_ok=True)
+            obj.hide_render = True
+            for face, (x, y, w, h) in item_patches(vp, obj, size).items():
+                cam = cube_face_camera(vp, face, size)
+                render.use_border = True
+                render.use_crop_to_border = True
+                render.border_min_x, render.border_max_x = x / size, (x + w) / size
+                render.border_min_y, render.border_max_y = 1 - (y + h) / size, 1 - y / size
+                t0 = time.time()
+                render_camera(scene, cam, folder, filename=f"patch-{face}", fmt="WEBP", quality=quality)
+                print(f"Patch {obj['item']}/{face} {w}x{h}: {time.time() - t0:.1f} s")
+            obj.hide_render = False
+    finally:
+        render.use_border = False
+        render.use_crop_to_border = False
+        remove_cube_face_camera()
+        scene.camera = vp
+
+
+def item_entry(obj, hs_slug, out):
+    """space.json entry for a featured item (see HotspotItem in web/src/lib/types.ts)."""
+    slug = obj["item"]
+    rel = f"details/{hs_slug}/items/{slug}"
+    folder = os.path.join(out, "details", hs_slug, "items", slug)
+    os.makedirs(folder, exist_ok=True)
+    for name in ("cover.webp", "spine.webp"):
+        shutil.copyfile(os.path.join(obj["item_art"], name), os.path.join(folder, name))
+    data = json.loads(obj["item_json"])
+    loc, rot, _ = obj.matrix_world.decompose()
+    t, h, d = obj["dims"]
+    return {
+        "slug": slug,
+        **data,
+        "cover": f"{rel}/cover.webp",
+        "spine": f"{rel}/spine.webp",
+        "size": [round(t, 4), round(h, 4), round(d, 4)],
+        "position": [round(c, 4) for c in loc],
+        "rotation": [round(c, 6) for c in rot],
+        "patches": [],
+    }
 
 
 def render_cube_faces(scene, vp, folder, size):
@@ -274,6 +348,14 @@ def main():
             "position": r3(hs.location),
             "views": views,
         }
+        focus = hs.get("focus")
+        if focus:
+            fvp = next(v for v in viewpoints if v["slug"] == focus["viewpoint"])
+            yaw, pitch, _ = yaw_pitch(fvp.location, focus["target"])
+            entry["focus"] = {"viewpoint": focus["viewpoint"], "yaw": yaw, "pitch": pitch, "fov": focus["fov"]}
+            items = sorted((o for o in scene.objects if o.get("item_of") == hs["slug"]),
+                           key=lambda o: o["item_order"])
+            entry["items"] = [item_entry(o, hs["slug"], out) for o in items]
         if hs.get("target") is not None:
             entry["target"] = hs["target"]
             if hs["target"]:
@@ -292,7 +374,25 @@ def main():
         if entry["slug"] in details:
             entry["detail"] = details[entry["slug"]]
 
+    def face_size(vp):
+        # --scale shrinks the faces too, but never below one tile
+        return max(a.tile_size, round(vp.get("face_size", a.face_size) * a.scale / 100))
+
     def write_space():
+        # patches: only those rendered for the focus viewpoint's current face size
+        for entry in data["hotspots"]:
+            if "focus" not in entry:
+                continue
+            fvp = next(v for v in viewpoints if v["slug"] == entry["focus"]["viewpoint"])
+            size = face_size(fvp)
+            for item in entry["items"]:
+                obj = next(o for o in scene.objects if o.get("item") == item["slug"])
+                item["patches"] = []
+                for face, rect in item_patches(fvp, obj, size).items():
+                    rel = f"details/{entry['slug']}/items/{item['slug']}/patch-{face}.webp"
+                    if os.path.exists(os.path.join(out, rel)):
+                        item["patches"].append({"viewpoint": fvp["slug"], "face": face, "faceSize": size,
+                                                "rect": rect, "image": rel})
         for entry in data["viewpoints"]:
             tiles = tiles_entry(out, entry["slug"])
             if tiles:
@@ -323,12 +423,11 @@ def main():
     only = [s for s in a.only.split(",") if s]
     if not only:
         render_camera(scene, plan, out, filename="plan", fmt="WEBP")
-    # --scale shrinks the faces too, but never below one tile
-    size = max(a.tile_size, round(a.face_size * a.scale / 100))
     tilers = []
     for vp in viewpoints:
         if only and vp["slug"] not in only:
             continue
+        size = face_size(vp)
         faces = os.path.join(CUBE_BUILD, slug, vp["slug"])
         print(f"Rendering panorama {vp['slug']}: 6 cube faces of {size} px")
         t0 = time.time()
@@ -336,6 +435,10 @@ def main():
         print(f"Panorama {vp['slug']}: rendered in {time.time() - t0:.1f} s")
         tilers.append(start_tiling(faces, os.path.join(out, "panos", vp["slug"]),
                                    os.path.join(out, "panos", f"{vp['slug']}.webp"), a))
+        items = [o for o in scene.objects if o.get("item_of")
+                 and (bpy.data.objects[f"hs_{o['item_of']}"].get("focus") or {}).get("viewpoint") == vp["slug"]]
+        if items:
+            render_patches(scene, vp, items, out, size)
     failed = [t for t in tilers if t.wait() != 0]
     write_space()
     if failed:
