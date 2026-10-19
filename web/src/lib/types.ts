@@ -32,6 +32,10 @@ export interface Hotspot {
 	views: Record<string, HotspotView>;
 	/** For doors: the space slug they lead to ('' = not connected yet). */
 	target?: string;
+	/** For doors: the viewpoint to arrive at in the target space. */
+	arrive?: string;
+	/** For doors: the target space's title. */
+	targetTitle?: string;
 }
 
 export interface FloorPlan {

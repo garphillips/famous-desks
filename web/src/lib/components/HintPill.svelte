@@ -1,12 +1,21 @@
 <script lang="ts">
 	import Icon from './Icon.svelte';
+
+	const touch = matchMedia('(pointer: coarse)').matches;
 </script>
 
 <div class="hint" role="note">
-	<Icon name="mouse" size={22} />
+	{#if touch}
+		<svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.6"
+			stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+			<path d="M9 11V5.5a1.5 1.5 0 0 1 3 0V10m0-1.5a1.5 1.5 0 0 1 3 0V11m0-1a1.5 1.5 0 0 1 3 0v4.5a6 6 0 0 1-6 6h-.6a5 5 0 0 1-3.9-1.9L4.6 15a1.5 1.5 0 0 1 2.3-1.9L9 15" />
+		</svg>
+	{:else}
+		<Icon name="mouse" size={22} />
+	{/if}
 	<div class="text">
 		<strong>Drag to look around</strong>
-		<span>Scroll to zoom</span>
+		<span>{touch ? 'Pinch to zoom' : 'Scroll to zoom'}</span>
 	</div>
 </div>
 
