@@ -55,6 +55,8 @@ const STEP_MS = 580;
 const REDUCED_MS = 220;
 const STEP_ZOOM_OUT = 0.6;
 const STEP_ZOOM_IN = 0.8;
+/** How long a transition waits for a (usually prefetched) panorama before turning without it. */
+const READY_WAIT_MS = 120;
 
 /** Cube half-sizes: the preview/equirect at the back, finer tile levels in front of coarser ones. */
 const BACKGROUND_RADIUS = 5;
@@ -192,6 +194,18 @@ const smoothstep = (a: number, b: number, t: number) => {
 	return x * x * (3 - 2 * x);
 };
 const wrap = (deg: number) => ((((deg + 180) % 360) + 360) % 360) - 180;
+/** Between two fields of view at a steady rate of magnification (straight lerp rushes the end). */
+const lerpFov = (a: number, b: number, e: number) => {
+	const ta = Math.tan(THREE.MathUtils.degToRad(a) / 2);
+	const tb = Math.tan(THREE.MathUtils.degToRad(b) / 2);
+	return THREE.MathUtils.radToDeg(2 * Math.atan(ta * (tb / ta) ** e));
+};
+/** Time to zoom between two fields of view: about 700 ms per doubling of magnification. */
+const zoomDuration = (a: number, b: number) => {
+	const ratio = Math.tan(THREE.MathUtils.degToRad(a) / 2) / Math.tan(THREE.MathUtils.degToRad(b) / 2);
+	return Math.min(1600, Math.abs(Math.log2(ratio)) * 700);
+};
+const wait = (ms: number) => new Promise<void>((done) => setTimeout(done, ms));
 const toSource = (source: PanoSource | string): PanoSource => (typeof source === 'string' ? { url: source } : source);
 
 interface TileInfo {
@@ -355,10 +369,14 @@ export class PanoViewer {
 
 	/**
 	 * Moves to another panorama: turn to `yaw`, zoom in while crossfading, settle.
-	 * With `reduced`, just a quick crossfade at the current heading. Resolves false
-	 * if another transition replaced this one.
+	 * `pitch` and `fov` (default level, unchanged) are where the view ends up, so a move
+	 * can land on a close-up in one motion. With `reduced`, just a quick crossfade at the
+	 * current heading. Resolves false if another transition replaced this one.
 	 */
-	async transitionTo(source: PanoSource | string, { yaw, reduced = false }: { yaw: number; reduced?: boolean }) {
+	async transitionTo(
+		source: PanoSource | string,
+		{ yaw, pitch = 0, fov, reduced = false }: { yaw: number; pitch?: number; fov?: number; reduced?: boolean }
+	) {
 		const src = toSource(source);
 		this.settle();
 		const token = ++this.token;
@@ -366,29 +384,48 @@ export class PanoViewer {
 		this.inertia = null;
 		this.pinch = null;
 		const background = this.preload(src);
+		const to = { yaw, pitch, fov: THREE.MathUtils.clamp(fov ?? this.fov, MIN_FOV, MAX_FOV) };
 		try {
-			if (!reduced) {
+			// A prefetched panorama is ready at once: turn, step and zoom as one motion.
+			// Otherwise turn towards it while it loads, then step.
+			let bg = await Promise.race([background, wait(READY_WAIT_MS).then(() => null)]);
+			if (token !== this.token) return false;
+			if (!bg && !reduced) {
 				const from = { yaw: this.yaw, pitch: this.pitch };
 				const turn = wrap(yaw - from.yaw);
-				const ms = Math.min(TURN_MAX_MS, (Math.abs(turn) + Math.abs(from.pitch)) * TURN_MS_PER_DEGREE);
+				const ms = Math.min(TURN_MAX_MS, (Math.abs(turn) + Math.abs(from.pitch - pitch)) * TURN_MS_PER_DEGREE);
 				await this.animate(ms, (t) => {
 					const e = easeInOut(t);
 					this.yaw = from.yaw + turn * e;
-					this.pitch = from.pitch * (1 - e);
+					this.pitch = THREE.MathUtils.lerp(from.pitch, pitch, e);
 				});
 				if (token !== this.token) return false;
 			}
-			const bg = await background;
+			bg ??= await background;
 			if (token !== this.token) return false;
 			this.assign(this.incoming, src, bg);
-			await this.animate(reduced ? REDUCED_MS : STEP_MS, (t) => {
-				if (reduced) {
-					this.incoming.opacity.value = t;
-					return;
-				}
-				this.current.zoom = THREE.MathUtils.lerp(1, STEP_ZOOM_OUT, easeIn(t));
-				this.incoming.opacity.value = smoothstep(0.25, 0.85, t);
-				this.incoming.zoom = THREE.MathUtils.lerp(STEP_ZOOM_IN, 1, easeOut(smoothstep(0.25, 1, t)));
+			if (reduced) {
+				await this.animate(REDUCED_MS, (t) => (this.incoming.opacity.value = t));
+				if (token !== this.token) return false;
+				this.commit();
+				return true;
+			}
+			const from = { yaw: this.yaw, pitch: this.pitch, fov: this.fov };
+			const turn = wrap(to.yaw - from.yaw);
+			const turnMs = Math.min(TURN_MAX_MS, (Math.abs(turn) + Math.abs(from.pitch - to.pitch)) * TURN_MS_PER_DEGREE);
+			const zoomMs = zoomDuration(from.fov, to.fov);
+			const ms = turnMs + Math.max(STEP_MS, zoomMs);
+			// the step (crossfade) starts once the turn is mostly done
+			const s0 = (turnMs * 0.6) / ms;
+			await this.animate(ms, (t) => {
+				const e = easeInOut(t);
+				this.yaw = from.yaw + turn * e;
+				this.pitch = THREE.MathUtils.lerp(from.pitch, to.pitch, e);
+				this.fov = lerpFov(from.fov, to.fov, e);
+				const s = THREE.MathUtils.clamp((t - s0) / (1 - s0), 0, 1);
+				this.current.zoom = THREE.MathUtils.lerp(1, STEP_ZOOM_OUT, easeIn(s));
+				this.incoming.opacity.value = smoothstep(0.2, 0.8, s);
+				this.incoming.zoom = THREE.MathUtils.lerp(STEP_ZOOM_IN, 1, easeOut(smoothstep(0.2, 1, s)));
 			});
 			if (token !== this.token) return false;
 			this.commit();
@@ -464,19 +501,23 @@ export class PanoViewer {
 		return out.toDataURL('image/jpeg', 0.85);
 	}
 
-	/** Turns and zooms to a view over `ms`; resolves false if something else took over. */
-	async zoomTo(yaw: number, pitch: number, fov: number, ms = 700) {
+	/**
+	 * Turns and zooms to a view over `ms` (by default, longer for a bigger move);
+	 * resolves false if something else took over.
+	 */
+	async zoomTo(yaw: number, pitch: number, fov: number, ms?: number) {
 		if (this.busy) return false;
 		this.inertia = null;
 		const from = { yaw: this.yaw, pitch: this.pitch, fov: this.fov };
 		const turn = wrap(yaw - from.yaw);
 		const to = THREE.MathUtils.clamp(fov, MIN_FOV, MAX_FOV);
 		const token = this.token;
+		ms ??= Math.max(zoomDuration(from.fov, to), Math.min(1400, 500 + (Math.abs(turn) + Math.abs(pitch - from.pitch)) * 4));
 		await this.animate(prefersReducedMotion() ? 0 : ms, (t) => {
 			const e = easeInOut(t);
 			this.yaw = from.yaw + turn * e;
 			this.pitch = THREE.MathUtils.lerp(from.pitch, pitch, e);
-			this.fov = THREE.MathUtils.lerp(from.fov, to, e);
+			this.fov = lerpFov(from.fov, to, e);
 		});
 		return token === this.token;
 	}

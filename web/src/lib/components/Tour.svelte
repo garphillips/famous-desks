@@ -37,7 +37,7 @@
 	const thumbnails: Record<string, string> = $state({});
 
 	// Focus: zoomed in on a hotspot whose items (books) can be picked.
-	let focus: Hotspot | null = $state(null);
+	let focus: Hotspot | null = $state.raw(null);
 	/** True once the zoom-in has landed (so zooming out can leave). */
 	let focusReady = false;
 	/** The field of view the focus zoomed to (wider than focus.fov on portrait screens). */
@@ -142,11 +142,15 @@
 		}
 
 		let shown: Promise<unknown>;
+		let landing: Hotspot | null = null;
 		if (from && !target) {
 			moving = true;
 			// Compass bearing from here to there: x east, y north, clockwise from north.
 			const yaw = (Math.atan2(v.position[0] - from.position[0], v.position[1] - from.position[1]) * 180) / Math.PI;
-			shown = viewer.transitionTo(panoSource(v), { yaw, reduced: prefersReducedMotion() });
+			// heading for a close-up (the bookshelf): the move itself ends on it
+			landing = pendingFocus?.focus?.viewpoint === v.slug ? pendingFocus : null;
+			const view = landing ? focusView(landing) : { yaw };
+			shown = viewer.transitionTo(panoSource(v), { ...view, reduced: prefersReducedMotion() });
 		} else {
 			loading = true;
 			shown = viewer.setPanorama(panoSource(v)).then(() => {
@@ -169,8 +173,9 @@
 				loading = moving = false;
 				viewer.prefetch(neighbours(v).map(panoSource));
 				const next = pendingFocus;
-				pendingFocus = null;
-				if (next?.focus?.viewpoint === v.slug) startFocus(next);
+				const landed = next === landing;
+				pendingFocus = landing = null;
+				if (next?.focus?.viewpoint === v.slug) startFocus(next, !landed || prefersReducedMotion());
 			});
 	}
 
@@ -218,21 +223,35 @@
 		pinned = peek = null;
 	}
 
-	/** Zooms in on a focus hotspot and lets its items be picked. */
-	async function startFocus(h: Hotspot) {
+	/** Where a focus hotspot is looked at from; on a narrow (portrait) screen, zoomed out so the shelf's width still fits. */
+	function focusView(h: Hotspot) {
+		const f = h.focus!;
+		const aspect = canvas.clientWidth / canvas.clientHeight;
+		const t = Math.tan(((f.fov * 0.8) / 2) * (Math.PI / 180)) / aspect;
+		const fov = Math.max(f.fov, Math.min(90, (2 * Math.atan(t) * 180) / Math.PI));
+		return { yaw: f.yaw, pitch: f.pitch, fov };
+	}
+
+	/**
+	 * Zooms in on a focus hotspot (unless a move already landed there) and lets its items
+	 * be picked. The items are set up once the view is still, so nothing competes with the zoom.
+	 */
+	async function startFocus(h: Hotspot, zoom = true) {
 		if (!viewer || !h.focus) return;
 		focus = h;
 		focusReady = false;
 		showHint = false;
+		const view = focusView(h);
+		focusFov = view.fov;
+		if (zoom && !(await viewer.zoomTo(view.yaw, view.pitch, view.fov))) {
+			if (focus === h) leaveFocus(false, false);
+			return;
+		}
+		if (focus !== h) return;
 		shelf = new ShelfItems(viewer, h.items ?? [], viewpoint, (path) => spaceUrl(space.slug, path));
 		viewer.addOverlay(shelf);
-		// on a narrow (portrait) screen, zoom less so the shelf's width still fits
-		const aspect = canvas.clientWidth / canvas.clientHeight;
-		const t = Math.tan(((h.focus.fov * 0.8) / 2) * (Math.PI / 180)) / aspect;
-		const fov = Math.max(h.focus.fov, Math.min(90, (2 * Math.atan(t) * 180) / Math.PI));
-		focusFov = fov;
-		await viewer.zoomTo(h.focus.yaw, h.focus.pitch, fov, 900);
-		if (focus === h) focusReady = true;
+		focusReady = true;
+		updateView();
 	}
 
 	/** Back to looking around: the book goes back, the overlay goes, the view zooms out. */
@@ -460,6 +479,15 @@
 	.outlines g {
 		animation: breathe 2.2s ease-in-out infinite;
 		transition: opacity 160ms ease;
+	}
+	/* the glow arrives once the zoom has landed */
+	.outlines polygon {
+		animation: glow-in 600ms ease-out both;
+	}
+	@keyframes glow-in {
+		from {
+			opacity: 0;
+		}
 	}
 	.outlines .bloom {
 		fill: #ffd28a;
