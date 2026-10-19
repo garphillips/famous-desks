@@ -10,13 +10,25 @@
 
 	const index = $derived(Math.max(0, viewpoints.findIndex((v) => v.slug === current)));
 	const step = (d: number) => onselect(viewpoints[(index + d + viewpoints.length) % viewpoints.length].slug);
+
+	let list: HTMLUListElement;
+
+	// When the names don't all fit (phones), keep the current one centred in view.
+	$effect(() => {
+		const button = list.children[index]?.firstElementChild as HTMLElement | undefined;
+		if (!button || list.scrollWidth <= list.clientWidth) return;
+		list.scrollTo({
+			left: button.offsetLeft - (list.clientWidth - button.offsetWidth) / 2,
+			behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth'
+		});
+	});
 </script>
 
 <nav class="scenes" aria-label="Viewpoints">
 	<button class="arrow" onclick={() => step(-1)} aria-label="Previous viewpoint">
 		<Icon name="chevron-left" size={16} />
 	</button>
-	<ul>
+	<ul bind:this={list}>
 		{#each viewpoints as v (v.slug)}
 			<li>
 				<button
@@ -46,7 +58,9 @@
 		max-width: calc(100vw - 32px);
 	}
 	ul {
+		position: relative;
 		display: flex;
+		min-width: 0;
 		gap: 2px;
 		margin: 0;
 		padding: 0;
@@ -95,5 +109,18 @@
 	}
 	.arrow:hover {
 		background: rgba(244, 241, 234, 0.12);
+	}
+
+	@media (max-width: 600px) {
+		ul {
+			mask-image: linear-gradient(to right, transparent, #000 12px, #000 calc(100% - 12px), transparent);
+		}
+		ul button {
+			padding: 9px 12px 11px;
+		}
+		ul button.current::after {
+			left: 12px;
+			right: 12px;
+		}
 	}
 </style>

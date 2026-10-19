@@ -2,8 +2,8 @@
 	import { onMount, untrack } from 'svelte';
 	import { goto } from '$app/navigation';
 	import { page } from '$app/state';
-	import { PanoViewer } from '$lib/viewer/PanoViewer';
-	import { spaceUrl, type Hotspot, type Space } from '$lib/types';
+	import { PanoViewer, prefersReducedMotion } from '$lib/viewer/PanoViewer';
+	import { spaceUrl, type Hotspot, type Space, type Viewpoint } from '$lib/types';
 	import TopBar from './TopBar.svelte';
 	import HotspotMarker from './HotspotMarker.svelte';
 	import Minimap from './Minimap.svelte';
@@ -18,6 +18,8 @@
 	let canvas: HTMLCanvasElement;
 	let viewer: PanoViewer | undefined = $state();
 	let loading = $state(true);
+	let moving = $state(false);
+	let showToken = 0;
 	let yaw = $state(0);
 	let hfov = $state(90);
 	let markers: { hotspot: Hotspot; x: number; y: number; visible: boolean }[] = $state([]);
@@ -49,7 +51,7 @@
 	// Card thumbnails are cut from the live panorama the first time a card opens.
 	$effect(() => {
 		const slug = openSlug;
-		if (!slug || loading || !viewer) return;
+		if (!slug || loading || moving || !viewer) return;
 		const h = here.find((x) => x.slug === slug);
 		if (!h) return;
 		const key = thumbKey(h);
@@ -69,30 +71,65 @@
 		return () => viewer?.dispose();
 	});
 
-	// Load the panorama whenever the viewpoint changes.
+	// Show the panorama whenever the viewpoint changes: step across from the one on
+	// screen, or load it plainly on first visit, a new space or a ?h= deep link.
 	$effect(() => {
 		const v = viewpoint;
 		if (!viewer) return;
-		untrack(() => {
+		untrack(() => show(viewer!, v));
+	});
+
+	const panoUrl = (v: Viewpoint) => spaceUrl(space.slug, v.pano);
+
+	function show(viewer: PanoViewer, v: Viewpoint) {
+		pinned = peek = null;
+		detail = null;
+		const token = ++showToken;
+		const focus = page.url.searchParams.get('h');
+		const target = focus ? space.hotspots.find((h) => h.slug === focus && h.views[v.slug]) : null;
+		viewer.settle();
+		const from = space.viewpoints.find((x) => panoUrl(x) === viewer.url);
+		if (from === v && !target) {
+			loading = moving = false;
+			return;
+		}
+
+		let shown: Promise<unknown>;
+		if (from && !target) {
+			moving = true;
+			// Compass bearing from here to there: x east, y north, clockwise from north.
+			const yaw = (Math.atan2(v.position[0] - from.position[0], v.position[1] - from.position[1]) * 180) / Math.PI;
+			shown = viewer.transitionTo(panoUrl(v), { yaw, reduced: prefersReducedMotion() });
+		} else {
 			loading = true;
-			pinned = peek = null;
-			detail = null;
-		});
-		viewer
-			.setPanorama(spaceUrl(space.slug, v.pano))
-			.then(() => {
-				const focus = page.url.searchParams.get('h');
-				const target = focus ? space.hotspots.find((h) => h.slug === focus && h.views[v.slug]) : null;
+			shown = viewer.setPanorama(panoUrl(v)).then(() => {
+				if (token !== showToken) return;
 				if (target) {
-					viewer!.lookAt(target.views[v.slug].yaw, Math.max(-20, Math.min(20, target.views[v.slug].pitch)));
+					viewer.lookAt(target.views[v.slug].yaw, Math.max(-20, Math.min(20, target.views[v.slug].pitch)));
 					pinned = target.slug;
 				} else {
-					viewer!.lookAt(v.initialYaw);
+					viewer.lookAt(v.initialYaw);
 				}
-			})
+			});
+		}
+		shown
 			.catch((err) => console.error(`Couldn't load panorama for ${v.slug}`, err))
-			.finally(() => (loading = false));
-	});
+			.finally(() => {
+				if (token !== showToken) return;
+				loading = moving = false;
+				viewer.prefetch(neighbours(v).map(panoUrl));
+			});
+	}
+
+	/** The nearest viewpoints and the scene bar's previous/next: the likely next moves. */
+	function neighbours(v: Viewpoint) {
+		const all = space.viewpoints;
+		const i = all.indexOf(v);
+		const dist = (w: Viewpoint) => Math.hypot(w.position[0] - v.position[0], w.position[1] - v.position[1]);
+		const nearest = all.filter((w) => w !== v).sort((a, b) => dist(a) - dist(b));
+		const list = [...nearest.slice(0, 2), all[(i + 1) % all.length], all[(i - 1 + all.length) % all.length]];
+		return [...new Set(list)].filter((w) => w !== v);
+	}
 
 	function goToViewpoint(slug: string) {
 		if (slug === viewpoint.slug) return;
@@ -107,7 +144,7 @@
 		const { yaw, pitch } = h.views[viewpoint.slug];
 		detailImage = viewer?.snapshot(yaw, pitch, 40, 840, 630) ?? '';
 		detail = h;
-		pinned = null;
+		pinned = peek = null;
 	}
 </script>
 
@@ -119,9 +156,9 @@
 		aria-label="Panorama of {space.title}, {viewpoint.title}. Drag or use arrow keys to look around; plus and minus to zoom."
 	></canvas>
 
-	<div class="markers">
+	<div class="markers" class:hidden={loading || moving}>
 		{#each markers as m (m.hotspot.slug)}
-			{#if m.visible && !loading}
+			{#if m.visible}
 				<HotspotMarker
 					hotspot={m.hotspot}
 					x={m.x}
@@ -130,6 +167,7 @@
 					thumbnail={thumbnails[thumbKey(m.hotspot)] ?? ''}
 					onpeek={() => (peek = m.hotspot.slug)}
 					onunpeek={() => (peek = null)}
+					ongrab={(e) => viewer?.grab(e)}
 					ontoggle={() => {
 						if (pinned === m.hotspot.slug) openDetail(m.hotspot);
 						else pinned = m.hotspot.slug;
@@ -206,6 +244,12 @@
 		position: absolute;
 		inset: 0;
 		pointer-events: none;
+		transition: opacity 240ms ease;
+	}
+	.markers.hidden {
+		opacity: 0;
+		visibility: hidden;
+		transition: none;
 	}
 	.top {
 		position: absolute;
@@ -237,18 +281,29 @@
 		justify-self: end;
 	}
 
-	@media (max-width: 760px) {
+	/* Stacked: minimap and hint on one row, scene bar full width below. */
+	@media (max-width: 1040px) {
 		.bottom {
-			grid-template-columns: 1fr;
-			justify-items: center;
+			grid-template-columns: auto minmax(0, 1fr);
+			grid-template-areas:
+				'left right'
+				'center center';
 			padding: 16px;
+			padding-bottom: max(16px, env(safe-area-inset-bottom));
 			gap: 12px;
 		}
 		.left {
-			justify-self: start;
+			grid-area: left;
 		}
 		.right {
-			display: none;
+			grid-area: right;
+			min-width: 0;
+		}
+		.center {
+			grid-area: center;
+			justify-self: center;
+			min-width: 0;
+			max-width: 100%;
 		}
 	}
 </style>

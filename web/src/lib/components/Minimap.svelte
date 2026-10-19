@@ -109,7 +109,7 @@
 					onclick={() => onselect(v.slug)}
 					onkeydown={(e) => onKey(e, v.slug)}
 				>
-					<circle class="hit" cx={sx(v.position[0])} cy={sy(v.position[1])} r="0.35" />
+					<circle class="hit" cx={sx(v.position[0])} cy={sy(v.position[1])} r="0.7" />
 					<circle class="mark" cx={sx(v.position[0])} cy={sy(v.position[1])} r={v.slug === current ? 0.16 : 0.11} />
 				</g>
 			{/each}
