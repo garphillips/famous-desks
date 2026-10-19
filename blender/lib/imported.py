@@ -297,8 +297,9 @@ def _caster(b, p, a, body, metal):
 
 def floor_lamp(m, col, name, loc, height=1.75):
     """Black metal floor lamp: square base plate, slim stem, tapered square
-    linen shade (open top and bottom) on a spider, a real bulb and a floor cable.
-    The shade uses the shared "lampshade" material so the lamp glow still works."""
+    linen shade (open top and bottom, soft rolled hems, a sewn seam, dark
+    binding tape round the bottom) on a spider, a real bulb and a floor cable.
+    The shade glows warm only when the scene's "lamp_glow" is on (0 by day)."""
     b = Builder()
     steel, cable = m["steel_black"], m["plastic_black"]
     _rbox(b, (0.28, 0.28, 0.018), (0, 0, 0.009), steel, 0.004)
@@ -307,11 +308,12 @@ def floor_lamp(m, col, name, loc, height=1.75):
     _lathe(b, [(0.011, 0.02), (0.011, stem_top), (0.016, stem_top), (0.016, stem_top + 0.05),
                (0.012, stem_top + 0.06)], steel, cap_top=True, segments=16)  # stem + socket
     hi = height
-    _shade(b, m["lampshade"], steel, (0.44, hi - 0.36), (0.34, hi))
-    for k in range(4):  # spider arms from the socket to the top frame corners
+    glow = bpy.context.scene.get("lamp_glow", 0.0)
+    _shade(b, linen_material(glow), binding_material(), steel, (0.44, hi - 0.36), (0.34, hi))
+    for k in range(4):  # spider arms from the socket to the top ring's corners
         a = math.pi / 4 + k * math.pi / 2
-        corner = Vector((math.cos(a), math.sin(a), 0)) * ((0.34 / 2 - 0.006) * math.sqrt(2))
-        _tube(b, [(0, 0, stem_top + 0.05), (corner.x, corner.y, hi - 0.006)], 0.0018, steel, sides=6)
+        corner = Vector((math.cos(a), math.sin(a), 0)) * ((0.34 / 2 - 0.012) * math.sqrt(2) - 0.006)
+        _tube(b, [(0, 0, stem_top + 0.05), (corner.x, corner.y, hi - 0.008)], 0.0018, steel, sides=6)
     _tube(b, [(0.0, 0.0, 0.02), (0.0, 0.1, 0.012), (0.0, 0.15, 0.004), (0.05, 0.3, 0.004),
               (0.22, 0.45, 0.004), (0.55, 0.52, 0.004), (0.9, 0.48, 0.004)], 0.0035, cable)
     lamp = b.build(name, col, loc)
@@ -329,23 +331,195 @@ def _dim_emission(obj, factor):
                 node.inputs["Emission Strength"].default_value *= factor
 
 
-def _shade(b, shade, steel, bottom, top, t=0.003):
-    """Tapered square drum from (width, z) at the bottom to the top, closed thin
-    walls with wire frames inside each lip."""
+def _rounded_square(w, rc, per_side=8, per_corner=4):
+    """Closed loop of points round a square of width w with corners of radius rc,
+    anticlockwise, starting in the middle of the -X,-Y corner (where the seam
+    goes, so the cloth's UV wrap hides under it). Returns the points and the arc
+    length to each, plus the loop's full length."""
+    h = w / 2 - rc
+    corners = ((-h, -h, 180), (h, -h, 270), (h, h, 0), (-h, h, 90))
+    pts = []
+    for k, (cx, cy, a0) in enumerate(corners):
+        for i in range(per_corner + 1):
+            a = math.radians(a0 + 90 * i / per_corner)
+            pts.append((cx + rc * math.cos(a), cy + rc * math.sin(a)))
+        ncx, ncy, na0 = corners[(k + 1) % 4]
+        nx, ny = ncx + rc * math.cos(math.radians(na0)), ncy + rc * math.sin(math.radians(na0))
+        ex, ey = pts[-1]
+        pts += [(ex + (nx - ex) * i / per_side, ey + (ny - ey) * i / per_side) for i in range(1, per_side)]
+    half = per_corner // 2  # rotate so the loop starts mid-corner
+    pts = pts[half:] + pts[:half]
+    arc = [0.0]
+    for p, q in zip(pts, pts[1:]):
+        arc.append(arc[-1] + math.dist(p, q))
+    return pts, arc, arc[-1] + math.dist(pts[-1], pts[0])
+
+
+def _shade(b, linen, binding, steel, bottom, top, t=0.0018, rc=0.012, rows=10):
+    """Tapered square linen shade from (width, z) at the bottom to the top.
+
+    Softly rounded corners; an outer and an inner skin of cloth (light comes
+    through two layers, as through a lined shade) with a faint slack wobble
+    between the stiff hems; rolled hems (the top in linen, the bottom bound in
+    dark tape); a sewn seam down the back (-X,-Y) corner; the wire rings inside
+    each lip. UVs are in metres (u round the shade, v up the slant) for the weave."""
+    from mathutils import noise
     (w0, z0), (w1, z1) = bottom, top
-    sq = [(-1, -1), (1, -1), (1, 1), (-1, 1)]
     bm = bmesh.new()
-    rings = [[bm.verts.new((sx * (w / 2 - i), sy * (w / 2 - i), z)) for sx, sy in sq]
-             for w, z, i in ((w0, z0, 0), (w1, z1, 0), (w1, z1, t), (w0, z0, t))]
-    for r0, r1 in zip(rings, rings[1:] + rings[:1]):
-        for i in range(4):
-            j = (i + 1) % 4
-            bm.faces.new((r0[i], r0[j], r1[j], r1[i]))
+    uv = bm.loops.layers.uv.new("UVMap")
+    slant = math.hypot((w0 - w1) / 2, z1 - z0)
+    skins = []
+    for inset, flip in ((0.0, False), (t, True)):
+        grid, uvs = [], []
+        for r in range(rows + 1):
+            f = r / rows
+            z = z0 + (z1 - z0) * f
+            pts, arc, total = _rounded_square(w0 + (w1 - w0) * f - 2 * inset, rc - inset)
+            slack = math.sin(math.pi * f) * 0.0008
+            ring = []
+            for x, y in pts:
+                d = slack * noise.noise(Vector((x * 8, y * 8, z * 6)))
+                rr = math.hypot(x, y)
+                ring.append(bm.verts.new((x + x / rr * d, y + y / rr * d, z)))
+            grid.append(ring)
+            uvs.append(arc + [total])
+        n = len(grid[0])
+        for r in range(rows):
+            for i in range(n):
+                j = (i + 1) % n
+                corners = [(r, i, i), (r, j, i + 1), (r + 1, j, i + 1), (r + 1, i, i)]
+                if flip:
+                    corners.reverse()
+                face = bm.faces.new([grid[rr][vi] for rr, vi, _ in corners])
+                face.smooth = True
+                for loop, (rr, _, ui) in zip(face.loops, corners):
+                    loop[uv].uv = (uvs[rr][ui], rr / rows * slant)
+        skins.append(grid)
+    outer, inner = skins
+    for r in (0, rows):  # close the cut edges between the skins (under the hems)
+        n = len(outer[r])
+        for i in range(n):
+            j = (i + 1) % n
+            q = [outer[r][i], outer[r][j], inner[r][j], inner[r][i]]
+            bm.faces.new(q if r == rows else q[::-1])
     bmesh.ops.recalc_face_normals(bm, faces=bm.faces[:])
-    _merge(b, bm, shade)
-    for w, z in ((w0, z0 + 0.004), (w1, z1 - 0.004)):
-        c = w / 2 - t - 0.002
-        _tube(b, [(sx * c, sy * c, z) for sx, sy in sq + sq[:1]], 0.0015, steel, sides=6)
+    _merge(b, bm, linen)
+    # rolled hems: round soft edges instead of a knife-thin cut
+    for w, z, mat, rad in ((w0, z0 + 0.0032, binding, 0.0034), (w1, z1 - 0.0028, linen, 0.0028)):
+        pts, _, _ = _rounded_square(w - t, rc - t / 2, per_side=4)
+        _tube(b, [(x, y, z) for x, y in pts + pts[:1]], rad, mat, sides=10)
+    # the seam: a narrow welt of cloth down the back corner, over the UV wrap
+    (xb, yb), (xt, yt) = _rounded_square(w0, rc)[0][0], _rounded_square(w1, rc)[0][0]
+    out_b, out_t = 1 + 0.0009 / math.hypot(xb, yb), 1 + 0.0009 / math.hypot(xt, yt)
+    _tube(b, [(xb * out_b, yb * out_b, z0 + 0.006), (xt * out_t, yt * out_t, z1 - 0.005)], 0.0011, linen, sides=6)
+    for w, z in ((w0, z0 + 0.007), (w1, z1 - 0.008)):  # wire rings inside the lips
+        pts, _, _ = _rounded_square(w - 2 * t - 0.006, max(rc - t - 0.003, 0.002), per_side=2)
+        _tube(b, [(x, y, z) for x, y in pts + pts[:1]], 0.0015, steel, sides=6)
+
+
+def linen_material(glow=0.0, name="lamp_linen"):
+    """Natural linen: plain weave (about 7 threads per cm) with slubby, uneven
+    threads and a soft sheen; lets about a third of the light through.
+    Emission only when the lamp is on (glow > 0). Expects UVs in metres."""
+    mat = bpy.data.materials.get(name)
+    if mat:
+        return mat
+    mat = bpy.data.materials.new(name)
+    try:
+        mat.use_nodes = True
+    except AttributeError:
+        pass
+    nt = mat.node_tree
+    nodes, link = nt.nodes, nt.links.new
+
+    def op(kind, a, b=None):
+        n = nodes.new("ShaderNodeMath")
+        n.operation = kind
+        for i, v in enumerate((a, b)):
+            if isinstance(v, bpy.types.NodeSocket):
+                link(v, n.inputs[i])
+            elif v is not None:
+                n.inputs[i].default_value = v
+        return n.outputs[0]
+
+    def noise_along(x, y, scale):
+        cmb = nodes.new("ShaderNodeCombineXYZ")
+        link(x, cmb.inputs[0])
+        link(y, cmb.inputs[1])
+        n = nodes.new("ShaderNodeTexNoise")
+        n.inputs["Scale"].default_value = scale
+        n.inputs["Detail"].default_value = 2.0
+        link(cmb.outputs[0], n.inputs["Vector"])
+        return n.outputs["Fac"]
+
+    uvn = nodes.new("ShaderNodeUVMap")
+    uvn.uv_map = "UVMap"
+    sep = nodes.new("ShaderNodeSeparateXYZ")
+    link(uvn.outputs[0], sep.inputs[0])
+    u, v = sep.outputs[0], sep.outputs[1]
+    threads = 700.0  # per metre
+    ut, vt = op("MULTIPLY", u, threads), op("MULTIPLY", v, threads)
+    # slubs: each thread thickens and darkens in streaks along its length
+    slub_warp = noise_along(op("FLOOR", ut), op("MULTIPLY", v, 14.0), 1.0)
+    slub_weft = noise_along(op("MULTIPLY", u, 14.0), op("FLOOR", vt), 1.0)
+    slub = op("MULTIPLY", op("ADD", slub_warp, slub_weft), 0.5)
+    # thread profiles (|sin| ridges) and plain weave: warp over weft on alternate crossings
+    warp = op("ABSOLUTE", op("SINE", op("MULTIPLY", ut, math.pi)))
+    weft = op("ABSOLUTE", op("SINE", op("MULTIPLY", vt, math.pi)))
+    cell = op("MODULO", op("ADD", op("FLOOR", op("MULTIPLY", ut, 0.5)), op("FLOOR", op("MULTIPLY", vt, 0.5))), 2.0)
+    over = nodes.new("ShaderNodeMix")
+    over.data_type = "FLOAT"
+    link(cell, over.inputs["Factor"])
+    link(op("MULTIPLY", weft, op("MULTIPLY", warp, 0.4)), over.inputs[2])
+    link(op("MULTIPLY", warp, op("MULTIPLY", weft, 0.4)), over.inputs[3])
+    height = op("ADD", op("ADD", warp, weft), op("ADD", over.outputs[0], op("MULTIPLY", slub, 1.2)))
+    bump = nodes.new("ShaderNodeBump")
+    bump.inputs["Strength"].default_value = 0.2
+    bump.inputs["Distance"].default_value = 0.0003
+    link(height, bump.inputs["Height"])
+    # colour: oatmeal linen, slubs darker, gaps between threads a touch darker still
+    tone = nodes.new("ShaderNodeMapRange")
+    tone.inputs["From Min"].default_value = 0.38
+    tone.inputs["From Max"].default_value = 0.68
+    link(slub, tone.inputs["Value"])
+    col = nodes.new("ShaderNodeMix")
+    col.data_type = "RGBA"
+    link(tone.outputs[0], col.inputs["Factor"])
+    col.inputs[6].default_value = (0.80, 0.60, 0.36, 1)
+    col.inputs[7].default_value = (0.62, 0.45, 0.26, 1)
+    gaps = nodes.new("ShaderNodeMix")
+    gaps.data_type = "RGBA"
+    gaps.blend_type = "MULTIPLY"
+    link(op("MULTIPLY", op("SUBTRACT", 1.0, op("MAXIMUM", warp, weft)), 0.35), gaps.inputs["Factor"])
+    link(col.outputs[2], gaps.inputs[6])
+    gaps.inputs[7].default_value = (0.78, 0.72, 0.64, 1)
+    bsdf = next(n for n in nodes if n.bl_idname == "ShaderNodeBsdfPrincipled")
+    link(gaps.outputs[2], bsdf.inputs["Base Color"])
+    link(bump.outputs[0], bsdf.inputs["Normal"])
+    bsdf.inputs["Roughness"].default_value = 0.88
+    bsdf.inputs["Sheen Weight"].default_value = 0.5
+    bsdf.inputs["Sheen Roughness"].default_value = 0.4
+    bsdf.inputs["Specular IOR Level"].default_value = 0.3
+    bsdf.inputs["Emission Color"].default_value = (1.0, 0.62, 0.30, 1)
+    bsdf.inputs["Emission Strength"].default_value = 0.04 * glow
+    trans = nodes.new("ShaderNodeBsdfTranslucent")
+    link(gaps.outputs[2], trans.inputs["Color"])
+    link(bump.outputs[0], trans.inputs["Normal"])
+    mix = nodes.new("ShaderNodeMixShader")
+    mix.inputs["Fac"].default_value = 0.3
+    link(bsdf.outputs[0], mix.inputs[1])
+    link(trans.outputs[0], mix.inputs[2])
+    out = next(n for n in nodes if n.bl_idname == "ShaderNodeOutputMaterial")
+    link(mix.outputs[0], out.inputs["Surface"])
+    return mat
+
+
+def binding_material(name="lamp_binding"):
+    """Dark cotton binding tape round the bottom hem."""
+    mat = _material(name, (0.03, 0.026, 0.022), 0.85)
+    bsdf = next(n for n in mat.node_tree.nodes if n.bl_idname == "ShaderNodeBsdfPrincipled")
+    bsdf.inputs["Sheen Weight"].default_value = 0.4
+    return mat
 
 
 # --------------------------------------------------------------------------- bins
