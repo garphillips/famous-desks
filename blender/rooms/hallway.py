@@ -50,7 +50,7 @@ def build():
     m = materials.library()
     architecture.Room(SPEC, m).build()
     environment.build_daylight(sun_azimuth=75, sun_elevation=25, mirror=True)  # same morning as the Jobs Room
-    bpy.context.scene.view_settings.exposure = 4.6
+    bpy.context.scene.view_settings.exposure = 6.0
 
     furn = collection("Furniture")
     props = collection("Props")

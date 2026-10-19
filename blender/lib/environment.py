@@ -241,7 +241,7 @@ def build_hdri_world(name, sun_azimuth, strength=1.0, clamp=20.0, mirror=False, 
 
 
 def build_daylight(sun_azimuth, sun_elevation, hdri="studio_garden", strength=1.0, mirror=False, backplate=1.0,
-                   sun_colour=(1.0, 0.9, 0.8)):
+                   sun_colour=(1.0, 0.94, 0.88)):
     """HDRI sky plus a sun lamp standing in for its (clamped) sun, at the same azimuth and energy."""
     world = build_hdri_world(hdri, sun_azimuth, strength, mirror=mirror, backplate=backplate)
     sun = build_sun(sun_azimuth, sun_elevation, strength=HDRIS[hdri]["sun_irradiance"] * strength, colour=sun_colour)

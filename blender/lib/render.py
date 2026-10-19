@@ -62,6 +62,7 @@ FINISH = {
     "vignette": 0.22,     # darkening in the corners
     "aberration": 0.008,  # lens dispersion
     "grain": 0.035,       # +- relative noise per pixel
+    "white_balance": (1.0, 1.0, 1.0),  # linear RGB gains; a room can set scene["white_balance"]
 }
 
 
@@ -119,10 +120,14 @@ def build_camera_finish(scene):
     link(grain.outputs[0], shade.inputs[1])
     out_mix = _node(nt, "ShaderNodeMix", data_type="RGBA", blend_type="MULTIPLY")
     out_mix.inputs["Factor"].default_value = 1.0
-    link(lens.outputs["Image"], out_mix.inputs["A"])
-    link(shade.outputs[0], out_mix.inputs["B"])
+    link(lens.outputs["Image"], out_mix.inputs[6])
+    link(shade.outputs[0], out_mix.inputs[7])
     out = nt.nodes.new("NodeGroupOutput")
-    link(out_mix.outputs["Result"], out.inputs[0])
+    # (Mix sockets by index: 6/7 are the colour A/B, output 2 the colour result)
+    balance = _node(nt, "ShaderNodeMix", data_type="RGBA", blend_type="MULTIPLY", Factor=1.0)
+    balance.name = "white_balance"
+    link(out_mix.outputs[2], balance.inputs[6])
+    link(balance.outputs[2], out.inputs[0])
     scene.compositing_node_group = nt
     scene.render.use_compositing = True
     return nt
@@ -145,6 +150,7 @@ def set_camera_finish(scene, cam):
     nt.nodes["vignette"].inputs[1].default_value = 0.0 if pano else -f["vignette"] / 2
     nt.nodes["grain"].inputs[1].default_value = 2 * f["grain"]
     nt.nodes["grain"].inputs[2].default_value = 1.0 - f["grain"]
+    nt.nodes["white_balance"].inputs[7].default_value = (*scene.get("white_balance", f["white_balance"]), 1.0)
 
 
 def render_camera(scene, cam, out_dir, scale=100, filename=None, fmt="PNG"):

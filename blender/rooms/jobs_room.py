@@ -115,9 +115,10 @@ def build():
 
 def build_lighting(c):
     """Sky, sun, garden and exposure: a low morning sun through the east window."""
-    environment.build_daylight(sun_azimuth=75, sun_elevation=25, mirror=True)
-    bpy.context.scene.view_settings.exposure = 4.1
-    bpy.context.scene["lamp_glow"] = 1.0  # warm floor-lamp glow (materials.finish_scene)
+    environment.build_daylight(sun_azimuth=75, sun_elevation=25, mirror=True, backplate=1.6)
+    bpy.context.scene.view_settings.exposure = 5.1
+    bpy.context.scene["white_balance"] = (0.72, 1.0, 1.32)  # neutralise the warm bounce off floor and beams
+    bpy.context.scene["lamp_glow"] = 0.0  # lamp off in daylight, as in the photo (materials.finish_scene)
 
 
 def build_bookshelf(c):
