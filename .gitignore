@@ -12,3 +12,6 @@ web/build/
 
 .DS_Store
 __pycache__/
+
+# Agent worktrees
+.claude/worktrees/

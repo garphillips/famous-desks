@@ -33,7 +33,7 @@
 			<ul class="steps">
 				<li><strong>Drag</strong> to look around, or use the arrow keys.</li>
 				<li><strong>Scroll</strong> or pinch to zoom in and out.</li>
-				<li><strong>Click a pin</strong> to see what an object is, and again to open its card.</li>
+				<li><strong>Click a pin</strong> to see what an object is, and again (or use its arrow) to look closer.</li>
 				<li><strong>Change spot</strong> with the scene bar or the floor plan.</li>
 			</ul>
 		</section>
