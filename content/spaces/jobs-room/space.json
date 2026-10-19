@@ -107,11 +107,11 @@
         "name": "floor_lamp",
         "points": [
           [
-            1.248,
-            -0.596
+            1.246,
+            -0.599
           ],
           [
-            1.248,
+            1.246,
             0.147
           ],
           [
@@ -120,7 +120,7 @@
           ],
           [
             2.369,
-            -0.596
+            -0.599
           ]
         ]
       },
@@ -496,11 +496,13 @@
       "initialYaw": -5.64,
       "tiles": {
         "path": "panos/office",
-        "faceSize": 1024,
+        "faceSize": 2560,
         "tileSize": 512,
         "levels": [
           512,
-          1024
+          1024,
+          2048,
+          2560
         ],
         "bleed": 1,
         "format": "webp",
@@ -517,7 +519,22 @@
         1.6
       ],
       "pano": "panos/bookshelf.webp",
-      "initialYaw": -90.0
+      "initialYaw": -90.0,
+      "tiles": {
+        "path": "panos/bookshelf",
+        "faceSize": 2560,
+        "tileSize": 512,
+        "levels": [
+          512,
+          1024,
+          2048,
+          2560
+        ],
+        "bleed": 1,
+        "format": "webp",
+        "preview": "panos/bookshelf/preview.webp",
+        "previewSize": 256
+      }
     },
     {
       "slug": "desk",
@@ -528,7 +545,22 @@
         1.6
       ],
       "pano": "panos/desk.webp",
-      "initialYaw": -31.36
+      "initialYaw": -31.36,
+      "tiles": {
+        "path": "panos/desk",
+        "faceSize": 2560,
+        "tileSize": 512,
+        "levels": [
+          512,
+          1024,
+          2048,
+          2560
+        ],
+        "bleed": 1,
+        "format": "webp",
+        "preview": "panos/desk/preview.webp",
+        "previewSize": 256
+      }
     },
     {
       "slug": "window",
@@ -539,7 +571,22 @@
         1.6
       ],
       "pano": "panos/window.webp",
-      "initialYaw": 26.72
+      "initialYaw": 26.72,
+      "tiles": {
+        "path": "panos/window",
+        "faceSize": 2560,
+        "tileSize": 512,
+        "levels": [
+          512,
+          1024,
+          2048,
+          2560
+        ],
+        "bleed": 1,
+        "format": "webp",
+        "preview": "panos/window/preview.webp",
+        "previewSize": 256
+      }
     },
     {
       "slug": "entrance",
@@ -550,7 +597,22 @@
         1.6
       ],
       "pano": "panos/entrance.webp",
-      "initialYaw": 17.33
+      "initialYaw": 17.33,
+      "tiles": {
+        "path": "panos/entrance",
+        "faceSize": 2560,
+        "tileSize": 512,
+        "levels": [
+          512,
+          1024,
+          2048,
+          2560
+        ],
+        "bleed": 1,
+        "format": "webp",
+        "preview": "panos/entrance/preview.webp",
+        "previewSize": 256
+      }
     }
   ],
   "hotspots": [

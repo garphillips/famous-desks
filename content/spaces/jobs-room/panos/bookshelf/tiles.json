@@ -1,0 +1,13 @@
+{
+  "faceSize": 2560,
+  "tileSize": 512,
+  "levels": [
+    512,
+    1024,
+    2048,
+    2560
+  ],
+  "bleed": 1,
+  "format": "webp",
+  "previewSize": 256
+}
