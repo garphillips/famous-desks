@@ -1,0 +1,20 @@
+{
+  "print_misty_pines": {
+    "kind": "texture",
+    "title": "Misty Pines (tonemapped HDRI, cropped and printed in black and white)",
+    "source": "Poly Haven",
+    "page": "https://polyhaven.com/a/misty_pines",
+    "author": "Greg Zaal",
+    "license": "CC0",
+    "files": [{"url": "https://dl.polyhaven.org/file/ph-assets/HDRIs/extra/Tonemapped%20JPG/misty_pines.jpg", "name": "misty_pines.jpg"}]
+  },
+  "print_autumn_meadow": {
+    "kind": "texture",
+    "title": "Autumn Meadow backplate DSC_0415 (printed in black and white)",
+    "source": "Poly Haven",
+    "page": "https://polyhaven.com/a/autumn_meadow",
+    "author": "Sergej Majboroda",
+    "license": "CC0",
+    "files": [{"url": "https://dl.polyhaven.org/file/ph-assets/HDRIs/extra/Backplates/autumn_meadow/jpg_plain/DSC_0415.jpg", "name": "DSC_0415.jpg"}]
+  }
+}

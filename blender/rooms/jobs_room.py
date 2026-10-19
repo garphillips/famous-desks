@@ -19,8 +19,9 @@ import math
 import random
 
 import bpy
+from mathutils import Matrix, Vector
 
-from lib import architecture, environment, furniture as f, hero, materials, tour
+from lib import architecture, desk, environment, furniture as f, hero, materials, tour
 from lib.geo import collection
 
 W, D = 6.4, 4.3
@@ -142,19 +143,79 @@ def build_desk(c):
     the desk's west side (where the man sits in the south-facing photo). Also
     the prints on the walls."""
     m, furn, props = c.m, c.furn, c.props
+    mt = desk.materials(m)
     rng = random.Random(7)
-    desk_y = WALL - DESK_LEN / 2
-    f.table(m, furn, "desk", (DESK_X, desk_y, 0), (DESK_W, DESK_LEN, 0.74), top="oak", frame="oak")
+    top = 0.74
+    desk.desk(mt, furn, "desk", (DESK_X, WALL - DESK_LEN / 2, 0), (DESK_W, DESK_LEN, top))
     hero.display(props, "display", DISPLAY_LOC, rot_z=-0.35, width=0.66, height=0.46)
-    f.black_box(m, props, "speaker", (DESK_X + 0.28, WALL - 0.3, 0.74), (0.18, 0.2, 0.26))
-    f.black_box(m, props, "keyboard", (DESK_X - 0.25, WALL - 0.5, 0.74), (0.42, 0.15, 0.03), rot_z=math.pi / 2 + 0.3)
-    f.tower(m, props, "mac_pro", (DESK_X - 0.2, WALL - 0.45, 0), rot_z=math.pi / 2)
-    for i, dy in enumerate([0.85, 1.15, 1.5]):
-        f.paper_stack(m, props, f"papers_{i}", (DESK_X + rng.uniform(-0.15, 0.15), WALL - dy, 0.74),
-                      rot_z=rng.uniform(-0.4, 0.4), size=(0.32, 0.24, rng.uniform(0.03, 0.12)), rng=rng)
+    desk.speaker(mt, props, "speaker", (DESK_X + 0.31, WALL - 0.21, top), rot_z=-0.12)
+    desk.desk_lamp(mt, props, "desk_lamp", (DESK_X + 0.31, WALL - 0.21, top + 0.303), rot_z=-0.12)
+    desk.tower(mt, props, "mac_pro", (DESK_X - 0.2, WALL - 0.45, 0), rot_z=math.pi / 2)
+    kb = desk.keyboard(mt, props, "keyboard", (DESK_X - 0.25, WALL - 0.55, top), rot_z=-1.34)
+    ms = desk.mouse(mt, props, "mouse", (DESK_X - 0.26, WALL - 0.86, top), rot_z=-1.45)
+    desk.desk_phone(mt, props, "desk_phone", (DESK_X - 0.31, WALL - 1.4, top), rot_z=-1.2)
+    desk.photo_frame(mt, props, "photo_frame", (DESK_X + 0.2, WALL - 0.47, top), rot_z=0.15)
+    _desk_cables(mt, props, kb, ms, top)
+
+    # the pot, mug and bottles, then piles of paper, magazines and CDs
+    small = hero.HeroBuilder()
+    desk.pen_pot(small, mt, rng, (-0.33, 0.23, 0))
+    desk.bottle(small, mt, (-0.36, 0.33, 0))
+    desk.bottle(small, mt, (-0.28, 0.35, 0), height=0.14, radius=0.022, mat=mt["glass_clear"], cap=mt["cap_white"])
+    desk.bottle(small, mt, (-0.25, 0.30, 0), height=0.11, radius=0.018, mat=mt["glass_clear"], cap=mt["cap_white"])
+    desk.mug(small, mt, (-0.08, -0.07, 0), rot=2.4)
+    small.build("desk_items", props, (DESK_X, WALL - 0.4, top))
+    piles = [
+        ((0.1, 1.42), 0.2, [("cds", 6), ("papers", 0.03), ("mags", 3), ("cds", 3)]),
+        ((0.21, 1.0), -0.15, [("catalogues", 3), ("papers", 0.06), ("mags", 2), ("envelopes", 1), ("mags", 1)]),
+        ((-0.1, 0.98), 0.35, [("papers", 0.035), ("envelopes", 2)]),
+        ((0.05, 0.72), -0.3, [("mags", 4), ("cds", 2), ("notebook", 0)]),
+        ((0.26, 0.52), 0.1, [("papers", 0.09), ("catalogues", 1), ("cds", 2)]),
+        ((-0.25, 0.47), -0.5, [("notebook", 1), ("envelopes", 1)]),
+    ]
+    for i, ((x, y), rot, recipe) in enumerate(piles):
+        desk.pile(mt, props, f"desk_pile_{i}", (DESK_X + x, y, top), recipe, rng, rot_z=rot)
+
     f.office_chair(m, furn, "chair", (DESK_X - DESK_W / 2 - 0.4, WALL - 0.7, 0), rot_z=0.5)
-    f.frame(m, props, "print_north", (DESK_X, WALL - 0.001, 1.85), (0.78, 0.62))
-    f.frame(m, props, "print_west", (-W / 2 + 0.001, -1.75, 1.45), (0.6, 0.8), rot_z=math.pi / 2)  # faces east
+    north = desk.bw_print("hero_print_north", "print_autumn_meadow", "DSC_0415.jpg", 3200,
+                          left=0.3, top=0.585, height=0.4, aspect=0.55 / 0.42, gamma=2.0)
+    desk.framed_print(mt, props, "print_north", (DESK_X, WALL - 0.001, 1.85), (0.78, 0.62),
+                      desk._image_material("hero_print_north", north, 0.45), window=(0.56, 0.43))
+    west = desk.bw_print("hero_print_west", "print_misty_pines", "misty_pines.jpg", 4096,
+                         left=0.43, top=0.1, height=0.55, aspect=0.39 / 0.57, gamma=1.25)
+    desk.framed_print(mt, props, "print_west", (-W / 2 + 0.001, -1.75, 1.45), (0.6, 0.8),
+                      desk._image_material("hero_print_west", west, 0.45), window=(0.4, 0.58),
+                      rot_z=math.pi / 2)  # faces east
+
+
+def _desk_cables(mt, props, kb, ms, top):
+    """Mouse to keyboard, then keyboard, display, speaker and lamp cables off the
+    desk's west edge by the wall and down to the tower."""
+    def at(obj, p):
+        return tuple(obj.matrix_world @ Vector(p))
+
+    for o in (kb, ms):
+        o.matrix_world = Matrix.Translation(o.location) @ Matrix.Rotation(o.rotation_euler.z, 4, "Z")
+    x0 = DESK_X - DESK_W / 2
+    b = hero.HeroBuilder()
+    z = top + 0.0018
+    mouse_end = at(ms, (0, 0.058, 0.004))
+    kb_end = at(kb, (0.216, 0.03, 0.006))
+    b.tube(hero.smooth_path([mouse_end, at(ms, (0.0, 0.1, 0.0)), (DESK_X - 0.12, WALL - 0.78, z),
+                             (DESK_X - 0.08, WALL - 0.62, z), kb_end[:2] + (z,), kb_end], 6), 0.0017,
+           mt["cable_white"])
+    drop = [(x0 + 0.03, WALL - 0.08, z), (x0 - 0.006, WALL - 0.07, top - 0.01), (x0 - 0.01, WALL - 0.075, 0.45),
+            (x0 + 0.02, WALL - 0.12, 0.004), (DESK_X - 0.44, WALL - 0.3, 0.004), (DESK_X - 0.44, WALL - 0.42, 0.2)]
+    starts = [
+        [at(kb, (0, 0.06, 0.004)), (DESK_X - 0.18, WALL - 0.2, z)],
+        [(DISPLAY_LOC[0] + 0.02, WALL - 0.14, z), (DESK_X - 0.2, WALL - 0.1, z)],
+        [(DESK_X + 0.33, WALL - 0.08, top + 0.08), (DESK_X + 0.3, WALL - 0.05, z), (DESK_X - 0.1, WALL - 0.04, z)],
+    ]
+    for i, s in enumerate(starts):
+        off = Vector((0.006 * i, 0.007 * i, 0))
+        path = s + [tuple(Vector(p) + off * (1 if p[2] > 0.01 else 3)) for p in drop]
+        b.tube(hero.smooth_path(path, 6), 0.0022 if i else 0.0018, mt["cable_white"] if i < 2 else mt["cord"])
+    b.build("desk_cables", props)
 
 
 def build_clutter(c):
