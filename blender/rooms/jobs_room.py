@@ -100,7 +100,7 @@ def build():
                 depth=shelf_depth, rot_z=math.pi / 2, seed=3)
     f.black_box(m, props, "basket", (-W / 2 + 0.2, 1.4, 2.145), (0.3, 0.6, 0.32), mat="wicker")
     f.black_box(m, props, "shelf_top_boxes", (-W / 2 + 0.2, 0.2, 2.145), (0.25, 0.45, 0.12))
-    f.frame(m, props, "print_west", (-W / 2 + 0.001, -1.75, 1.45), (0.6, 0.8), rot_z=-math.pi / 2)
+    f.frame(m, props, "print_west", (-W / 2 + 0.001, -1.75, 1.45), (0.6, 0.8), rot_z=math.pi / 2)  # faces east, into the room
 
     # The desk: short end against the north wall between the two windows.
     # Display at the wall end facing into the room, angled towards the chair on

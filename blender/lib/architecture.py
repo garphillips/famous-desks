@@ -142,7 +142,7 @@ class Room:
         leaf = w / leaves
         for i in range(leaves):
             x0 = -w / 2 + i * leaf
-            b.box((leaf - 0.004, 0.045, h), (x0 + leaf / 2, 0, h / 2), m[o.get("finish", "sash_white")])
+            b.box((leaf, 0.045, h), (x0 + leaf / 2, 0, h / 2), m[o.get("finish", "sash_white")])
             handle_x = x0 + (0.09 if i else leaf - 0.09) if leaves > 1 else w / 2 - 0.09
             b.cyl(0.025, 0.07, (handle_x, -0.05, 1.0), m["aluminium"], rot=(math.pi / 2, 0, 0))
         # architrave on the room side
