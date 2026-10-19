@@ -522,13 +522,13 @@
       "initialYaw": -90.0,
       "tiles": {
         "path": "panos/bookshelf",
-        "faceSize": 2560,
+        "faceSize": 4096,
         "tileSize": 512,
         "levels": [
           512,
           1024,
           2048,
-          2560
+          4096
         ],
         "bleed": 1,
         "format": "webp",
@@ -654,6 +654,224 @@
           "distance": 2.67
         }
       },
+      "focus": {
+        "viewpoint": "bookshelf",
+        "yaw": -93.37,
+        "pitch": -11.61,
+        "fov": 42
+      },
+      "items": [
+        {
+          "slug": "autobiography-of-a-yogi",
+          "title": "Autobiography of a Yogi",
+          "author": "Paramahansa Yogananda",
+          "summary": "Yogananda's 1946 memoir of his search for a guru in India and his decades teaching meditation in America. Jobs first read it as a teenager and reread it every year; it was reportedly the only book he downloaded to his iPad.",
+          "kind": "paperback",
+          "spineColour": "#2f6fc0",
+          "coverColour": "#5888b8",
+          "coverAspect": 0.666,
+          "cover": "details/bookshelf/items/autobiography-of-a-yogi/cover.webp",
+          "spine": "details/bookshelf/items/autobiography-of-a-yogi/spine.webp",
+          "size": [
+            0.034,
+            0.216,
+            0.14
+          ],
+          "position": [
+            -2.9215,
+            0.2951,
+            1.1815
+          ],
+          "rotation": [
+            0.708615,
+            0.0,
+            0.0,
+            0.705596
+          ],
+          "patches": [
+            {
+              "viewpoint": "bookshelf",
+              "face": "w",
+              "faceSize": 4096,
+              "rect": [
+                1995,
+                2262,
+                93,
+                346
+              ],
+              "image": "details/bookshelf/items/autobiography-of-a-yogi/patch-w.webp"
+            }
+          ]
+        },
+        {
+          "slug": "king-lear",
+          "title": "King Lear",
+          "author": "William Shakespeare",
+          "summary": "Shakespeare's tragedy of an ageing king who divides his kingdom between the daughters who flatter him best, and loses everything. Jobs named it among the books that shaped him at Reed College.",
+          "kind": "paperback",
+          "spineColour": "#e8d9b0",
+          "coverColour": "#e8d8a8",
+          "coverAspect": 0.656,
+          "cover": "details/bookshelf/items/king-lear/cover.webp",
+          "spine": "details/bookshelf/items/king-lear/spine.webp",
+          "size": [
+            0.022,
+            0.198,
+            0.129
+          ],
+          "position": [
+            -2.941,
+            0.3975,
+            1.4999
+          ],
+          "rotation": [
+            0.706284,
+            0.0,
+            0.0,
+            0.707929
+          ],
+          "patches": [
+            {
+              "viewpoint": "bookshelf",
+              "face": "w",
+              "faceSize": 4096,
+              "rect": [
+                2124,
+                1900,
+                85,
+                299
+              ],
+              "image": "details/bookshelf/items/king-lear/patch-w.webp"
+            }
+          ]
+        },
+        {
+          "slug": "dylan-thomas-collected-poems",
+          "title": "Collected Poems",
+          "author": "Dylan Thomas",
+          "summary": "The poet's own selection of his work from 1934 to 1952, including \u201cFern Hill\u201d and \u201cDo not go gentle into that good night\u201d. Jobs read and recited Dylan Thomas in his late teens.",
+          "kind": "hardback",
+          "spineColour": "#efece4",
+          "coverColour": "#f8f8f8",
+          "coverAspect": 0.631578947368421,
+          "cover": "details/bookshelf/items/dylan-thomas-collected-poems/cover.webp",
+          "spine": "details/bookshelf/items/dylan-thomas-collected-poems/spine.webp",
+          "size": [
+            0.026,
+            0.222,
+            0.145
+          ],
+          "position": [
+            -2.9714,
+            0.4037,
+            0.8411
+          ],
+          "rotation": [
+            0.708665,
+            0.0,
+            0.0,
+            0.705545
+          ],
+          "patches": [
+            {
+              "viewpoint": "bookshelf",
+              "face": "w",
+              "faceSize": 4096,
+              "rect": [
+                2127,
+                2636,
+                90,
+                379
+              ],
+              "image": "details/bookshelf/items/dylan-thomas-collected-poems/patch-w.webp"
+            }
+          ]
+        },
+        {
+          "slug": "nineteen-eighty-four",
+          "title": "Nineteen Eighty-Four",
+          "author": "George Orwell",
+          "summary": "Orwell's 1949 novel of Oceania, where Big Brother is always watching and the Party rewrites the truth. Apple borrowed its imagery for the Ridley Scott ad that launched the Macintosh in January 1984.",
+          "kind": "paperback",
+          "spineColour": "#f1ece0",
+          "coverColour": "#880808",
+          "coverAspect": 0.596,
+          "cover": "details/bookshelf/items/nineteen-eighty-four/cover.webp",
+          "spine": "details/bookshelf/items/nineteen-eighty-four/spine.webp",
+          "size": [
+            0.02,
+            0.181,
+            0.111
+          ],
+          "position": [
+            -2.9208,
+            -0.0358,
+            1.503
+          ],
+          "rotation": [
+            0.70414,
+            0.0,
+            0.0,
+            0.710061
+          ],
+          "patches": [
+            {
+              "viewpoint": "bookshelf",
+              "face": "w",
+              "faceSize": 4096,
+              "rect": [
+                1586,
+                1917,
+                99,
+                279
+              ],
+              "image": "details/bookshelf/items/nineteen-eighty-four/patch-w.webp"
+            }
+          ]
+        },
+        {
+          "slug": "the-innovators-dilemma",
+          "title": "The Innovator\u2019s Dilemma",
+          "author": "Clayton M. Christensen",
+          "summary": "Christensen's 1997 study of why well-run companies lose to cheaper, simpler newcomers: by listening too closely to their best customers. Jobs said it deeply influenced him.",
+          "kind": "paperback",
+          "spineColour": "#111111",
+          "coverColour": "#080808",
+          "coverAspect": 0.658,
+          "cover": "details/bookshelf/items/the-innovators-dilemma/cover.webp",
+          "spine": "details/bookshelf/items/the-innovators-dilemma/spine.webp",
+          "size": [
+            0.022,
+            0.229,
+            0.152
+          ],
+          "position": [
+            -2.9821,
+            -0.2698,
+            1.1838
+          ],
+          "rotation": [
+            0.709418,
+            0.0,
+            0.0,
+            0.704788
+          ],
+          "patches": [
+            {
+              "viewpoint": "bookshelf",
+              "face": "w",
+              "faceSize": 4096,
+              "rect": [
+                1305,
+                2236,
+                135,
+                351
+              ],
+              "image": "details/bookshelf/items/the-innovators-dilemma/patch-w.webp"
+            }
+          ]
+        }
+      ],
       "detail": {
         "images": [
           "details/bookshelf/closeup-1.webp"

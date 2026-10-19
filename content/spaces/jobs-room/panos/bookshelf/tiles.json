@@ -1,11 +1,11 @@
 {
-  "faceSize": 2560,
+  "faceSize": 4096,
   "tileSize": 512,
   "levels": [
     512,
     1024,
     2048,
-    2560
+    4096
   ],
   "bleed": 1,
   "format": "webp",
