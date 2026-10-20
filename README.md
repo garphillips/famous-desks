@@ -31,6 +31,28 @@ cd web && npm run dev                  # tour at http://localhost:5173
 The website reads `content/` directly (served at `/spaces/...`). Web stack:
 SvelteKit 2 + Vite 6 (Node 20 compatible) + Three.js, built as a static site.
 
+## Deploying
+
+The site is famousdesks.com, served as Cloudflare Workers static assets (`web/wrangler.jsonc`).
+Deploy with `scripts/deploy.sh` (or `cd web && npm run deploy -- <flags>`):
+
+```sh
+scripts/deploy.sh --dry-run   # build and validate with wrangler, upload nothing
+scripts/deploy.sh             # deploy HEAD of main, then check the live site
+scripts/deploy.sh --push      # ...and push main to GitHub if the checks pass
+scripts/deploy.sh --check     # only check the live site against HEAD (no build, no deploy)
+```
+
+It refuses to run unless HEAD is on main with no uncommitted changes under `web/` or
+`content/spaces/` (`--force` overrides; `--ref <commit>` deploys another commit). It builds
+from a temporary git worktree of the commit, because the site's static assets are `../content`
+and a build in the working folder would ship half-written renders or untracked spaces. Wrangler
+4 needs Node 22, which the script runs through `npx -p node@22` without changing the system Node
+(`web/.nvmrc` says 22 for nvm users). After deploying it checks the home page and its share tags,
+`/spaces/index.json`, `favicon.svg`, and that a panorama's live bytes match the committed file,
+and exits non-zero if any check fails. You need to be logged in to Cloudflare (`npx wrangler login`)
+for a real deploy; a dry run needs no login.
+
 ## Build and render by hand
 
 ```sh
