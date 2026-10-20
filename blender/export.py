@@ -403,6 +403,8 @@ def main():
             fvp = next(v for v in viewpoints if v["slug"] == focus["viewpoint"])
             yaw, pitch, _ = yaw_pitch(fvp.location, focus["target"])
             entry["focus"] = {"viewpoint": focus["viewpoint"], "yaw": yaw, "pitch": pitch, "fov": focus["fov"]}
+            if "width" in focus:
+                entry["focus"]["width"] = focus["width"]
             items = sorted((o for o in scene.objects if o.get("item_of") == hs["slug"]),
                            key=lambda o: o["item_order"])
             entry["items"] = [item_entry(o, hs["slug"], out) for o in items]

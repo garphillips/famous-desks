@@ -125,7 +125,8 @@ def hotspot(slug, title, loc, icon="eye", summary="", kind="hotspot", **extra):
 
     extra: e.g. target='<space>' for doors, model='<object name>' to export
     that object as details/<slug>/model.glb for the 3D view, or
-    focus=dict(viewpoint=<slug>, target=(x, y, z), fov=<degrees>): clicking the hotspot
+    focus=dict(viewpoint=<slug>, target=(x, y, z), fov=<degrees>[, width=<degrees across to keep in
+    view on portrait screens>]): clicking the hotspot
     moves to that viewpoint and zooms in on the target (e.g. a print on the wall), where the
     hotspot's items, if any (objects tagged item_of=<slug>, e.g. lib/featured.py's books), can be picked, or
     playlist='<Spotify playlist id>' (with icon='music'): the hotspot opens its player.

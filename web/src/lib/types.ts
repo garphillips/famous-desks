@@ -75,6 +75,8 @@ export interface HotspotFocus {
 	pitch: number;
 	/** Vertical field of view to zoom to, degrees. */
 	fov: number;
+	/** Degrees across that must stay in view on a narrow (portrait) screen; default 0.8 x fov. */
+	width?: number;
 }
 
 /** The focus viewpoint's panorama with an item taken out, for where it leaves its slot. */

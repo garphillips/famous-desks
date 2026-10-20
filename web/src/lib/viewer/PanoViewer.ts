@@ -33,7 +33,7 @@ export interface PanoSource {
 	tiles?: PanoTiles;
 }
 
-const MIN_FOV = 30;
+export const MIN_FOV = 30;
 const MAX_FOV = 90;
 const MAX_PITCH = 85;
 /** A yaw range keeps the frame's corners off the hidden wall up to this far above and below the horizon. */
@@ -387,7 +387,7 @@ export class PanoViewer {
 		this.inertia = null;
 		this.pinch = null;
 		const background = this.preload(src);
-		const toFov = THREE.MathUtils.clamp(fov ?? this.fov, MIN_FOV, MAX_FOV);
+		const toFov = THREE.MathUtils.clamp(fov ?? this.fov, this.minFov, MAX_FOV);
 		const to = { yaw: this.clampYaw(yaw, pitch, toFov), pitch, fov: toFov };
 		try {
 			// A prefetched panorama is ready at once: turn, step and zoom as one motion.
@@ -460,13 +460,13 @@ export class PanoViewer {
 
 	zoomBy(deltaDegrees: number) {
 		if (this.busy) return;
-		this.fov = THREE.MathUtils.clamp(this.fov + deltaDegrees, MIN_FOV, MAX_FOV);
+		this.fov = THREE.MathUtils.clamp(this.fov + deltaDegrees, this.minFov, MAX_FOV);
 		this.invalidate();
 	}
 
 	/** Sets the vertical field of view (degrees, clamped to the zoom range). */
 	setFov(fov: number) {
-		this.fov = THREE.MathUtils.clamp(fov, MIN_FOV, MAX_FOV);
+		this.fov = THREE.MathUtils.clamp(fov, this.minFov, MAX_FOV);
 		this.invalidate();
 	}
 
@@ -513,7 +513,7 @@ export class PanoViewer {
 		if (this.busy) return false;
 		this.inertia = null;
 		const from = { yaw: this.yaw, pitch: this.pitch, fov: this.fov };
-		const to = THREE.MathUtils.clamp(fov, MIN_FOV, MAX_FOV);
+		const to = THREE.MathUtils.clamp(fov, this.minFov, MAX_FOV);
 		const turn = this.turn(from.yaw, this.clampYaw(yaw, pitch, to));
 		const token = this.token;
 		ms ??= Math.max(zoomDuration(from.fov, to), Math.min(1400, 500 + (Math.abs(turn) + Math.abs(pitch - from.pitch)) * 4));
@@ -569,6 +569,10 @@ export class PanoViewer {
 			visible: p.dot(forward) > 0
 		};
 	}
+
+	/** How far in you can zoom (vertical field of view, degrees): MIN_FOV, or tighter in a close-up whose
+	 *  panorama is sharp enough for it (the display, from the bookshelf's 4096 px faces). */
+	minFov = MIN_FOV;
 
 	/**
 	 * The directions the view may face: [from, to] in degrees, clockwise (e.g. to keep a
@@ -1043,7 +1047,7 @@ export class PanoViewer {
 		if (this.busy) return;
 
 		if (this.pinch && this.pointers.size >= 2) {
-			this.fov = THREE.MathUtils.clamp((this.pinch.fov * this.pinch.distance) / this.pointerDistance(), MIN_FOV, MAX_FOV);
+			this.fov = THREE.MathUtils.clamp((this.pinch.fov * this.pinch.distance) / this.pointerDistance(), this.minFov, MAX_FOV);
 			this.invalidate();
 			return;
 		}
@@ -1096,7 +1100,7 @@ export class PanoViewer {
 			ArrowRight: () => (this.yaw += step),
 			ArrowUp: () => (this.pitch += step),
 			ArrowDown: () => (this.pitch -= step),
-			'+': () => (this.fov = Math.max(MIN_FOV, this.fov - step)),
+			'+': () => (this.fov = Math.max(this.minFov, this.fov - step)),
 			'-': () => (this.fov = Math.min(MAX_FOV, this.fov + step))
 		};
 		const move = moves[e.key];

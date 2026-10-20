@@ -527,7 +527,11 @@ def build_tour(c):
     tour.hotspot("bookshelf", "Bookshelf", (-W / 2 + 0.2, BOOKSHELF[0], 1.65), icon="books",
                  summary="Explore the collection of books, cameras and creative tools.",
                  focus=dict(viewpoint="bookshelf", target=(SHELF_FRONT, 0.2, 1.25), fov=42))
-    tour.hotspot("display", "The display", (DISPLAY_LOC[0], DISPLAY_LOC[1], 1.3), model="display")
+    # the screen, close up from the bookshelf viewpoint: nearly head-on, and its 4096 px faces
+    # are sharp enough to zoom to 20 degrees (desk top 0.74 + lift 0.12 + half the 0.43 m screen)
+    tour.hotspot("display", "The display", (DISPLAY_LOC[0], DISPLAY_LOC[1], 1.3), model="display",
+                 focus=dict(viewpoint="bookshelf", target=(DISPLAY_LOC[0], DISPLAY_LOC[1], 1.075), fov=20,
+                            width=26))  # degrees across that must fit on a portrait screen
     # in front of the desk speaker's baffle (desk top 0.74 m, speaker 0.30 m tall)
     tour.hotspot("speaker", "On the speaker", (DESK_X + 0.31, WALL - 0.34, 0.91), icon="music",
                  summary="Jobs was a lifelong Bob Dylan fan: he opened Apple's 1984 shareholders' meeting "

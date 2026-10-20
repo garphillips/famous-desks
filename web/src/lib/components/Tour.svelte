@@ -2,7 +2,7 @@
 	import { onMount, untrack } from 'svelte';
 	import { goto } from '$app/navigation';
 	import { page } from '$app/state';
-	import { PanoViewer, prefersReducedMotion, type PanoSource } from '$lib/viewer/PanoViewer';
+	import { MIN_FOV, PanoViewer, prefersReducedMotion, type PanoSource } from '$lib/viewer/PanoViewer';
 	import { ShelfItems, type Panel } from '$lib/viewer/shelfItems';
 	import { spaceUrl, type Hotspot, type HotspotItem, type Space, type Viewpoint } from '$lib/types';
 	import TopBar from './TopBar.svelte';
@@ -163,6 +163,8 @@
 				: minimap && v.arrive
 					? { ...v.arrive, fov: DEFAULT_FOV }
 					: { yaw };
+			// a close-up may zoom in further than usual (the display): let the move land on it
+			if (landing && 'fov' in view) viewer.minFov = Math.min(MIN_FOV, view.fov);
 			shown = viewer.transitionTo(panoSource(v), { ...view, reduced: prefersReducedMotion() });
 		} else {
 			loading = true;
@@ -215,6 +217,14 @@
 		goto(`/${space.slug}/${slug}`, { replaceState: true, noScroll: true, keepFocus: true });
 	}
 
+	/** The detail panel: close-ups and 3D model, over a snapshot of the hotspot. */
+	function showPanel(h: Hotspot) {
+		const { yaw, pitch } = h.views[viewpoint.slug] ?? { yaw: viewer?.yaw ?? 0, pitch: viewer?.pitch ?? 0 };
+		detailImage = viewer?.snapshot(yaw, pitch, 40, 840, 630) ?? '';
+		detail = h;
+		pinned = peek = null;
+	}
+
 	function openDetail(h: Hotspot) {
 		if (h.kind === 'door') {
 			if (h.target) goto(h.arrive ? `/${h.target}/${h.arrive}` : `/${h.target}`);
@@ -226,17 +236,14 @@
 			else goToViewpoint(h.focus.viewpoint, h);
 			return;
 		}
-		const { yaw, pitch } = h.views[viewpoint.slug];
-		detailImage = viewer?.snapshot(yaw, pitch, 40, 840, 630) ?? '';
-		detail = h;
-		pinned = peek = null;
+		showPanel(h);
 	}
 
 	/** Where a focus hotspot is looked at from; on a narrow (portrait) screen, zoomed out so the shelf's width still fits. */
 	function focusView(h: Hotspot) {
 		const f = h.focus!;
 		const aspect = canvas.clientWidth / canvas.clientHeight;
-		const t = Math.tan(((f.fov * 0.8) / 2) * (Math.PI / 180)) / aspect;
+		const t = Math.tan(((f.width ?? f.fov * 0.8) / 2) * (Math.PI / 180)) / aspect;
 		const fov = Math.max(f.fov, Math.min(90, (2 * Math.atan(t) * 180) / Math.PI));
 		return { yaw: f.yaw, pitch: f.pitch, fov };
 	}
@@ -252,6 +259,7 @@
 		showHint = false;
 		const view = focusView(h);
 		focusFov = view.fov;
+		viewer.minFov = Math.min(MIN_FOV, view.fov);
 		if (zoom && !(await viewer.zoomTo(view.yaw, view.pitch, view.fov))) {
 			if (focus === h) leaveFocus(false, false);
 			return;
@@ -274,6 +282,7 @@
 		outlines = [];
 		openItem = null;
 		shelf = null;
+		if (viewer) viewer.minFov = MIN_FOV;
 		if (s && viewer) {
 			if (animate) await s.putBack();
 			viewer.removeOverlay(s);
@@ -373,6 +382,9 @@
 					<span class="narrow">Tap a highlighted book</span>
 				{:else}
 					<span>{focus.title}</span>
+					{#if focus.detail}
+						<button class="more" onclick={() => showPanel(focus!)}>Close-ups and 3D</button>
+					{/if}
 				{/if}
 			</div>
 			{#if focus.items?.length}
@@ -607,6 +619,21 @@
 		display: grid;
 		place-items: center;
 		cursor: pointer;
+	}
+	.focus-bar .more {
+		margin-left: 6px;
+		padding: 6px 12px;
+		border-radius: 999px;
+		border: 1px solid var(--line);
+		background: transparent;
+		font: inherit;
+		font-weight: 500;
+		color: var(--ink);
+		cursor: pointer;
+		transition: border-color 150ms ease;
+	}
+	.focus-bar .more:hover {
+		border-color: var(--ink-soft);
 	}
 	.focus-bar .narrow {
 		display: none;
