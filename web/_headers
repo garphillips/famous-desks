@@ -4,9 +4,9 @@
   Cache-Control: public, max-age=31536000, immutable
 
 # Rendered images keep their names between renders: a day, then revalidate in the background.
-/spaces/*/panos/*
+/spaces/:space/panos/*
   Cache-Control: public, max-age=86400, stale-while-revalidate=604800
-/spaces/*/details/*
+/spaces/:space/details/*
   Cache-Control: public, max-age=86400, stale-while-revalidate=604800
 /spaces/*/plan.webp
   Cache-Control: public, max-age=86400, stale-while-revalidate=604800
