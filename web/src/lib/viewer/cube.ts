@@ -66,7 +66,7 @@ export function levelTiles(tiles: PanoTiles, level: number): Tile[] {
 				const w = Math.min(tiles.tileSize, size - x);
 				const h = Math.min(tiles.tileSize, size - y);
 				out.push({
-					url: `${tiles.path}/${size}/${face}-${row}-${col}.${tiles.format}`,
+					url: `${tiles.path}/${size}/${face}-${row}-${col}.${tiles.format}${tiles.version ? `?v=${tiles.version}` : ''}`,
 					face,
 					level,
 					row,

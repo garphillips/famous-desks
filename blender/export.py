@@ -24,6 +24,8 @@ the 4096 equirect fallback. Tiling runs in the background while the next viewpoi
 """
 
 import argparse
+import copy
+import hashlib
 import json
 import math
 import os
@@ -64,6 +66,37 @@ def yaw_range(origin, a, b):
     if start > 180:
         start, end = start - 360, end - 360
     return [round(start, 2), round(end, 2)]
+
+
+VERSIONED = (".webp", ".png", ".jpg", ".glb")
+
+
+def file_hash(*paths):
+    h = hashlib.sha1()
+    for path in paths:
+        with open(path, "rb") as fh:
+            h.update(fh.read())
+    return h.hexdigest()[:10]
+
+
+def versioned(value, out):
+    """A copy of the space data with ?v=<hash> on every image and model path, and a `version`
+    on each tile pyramid, so browsers and Cloudflare can cache them for good: a re-render
+    changes the file, so the address changes too."""
+    if isinstance(value, dict):
+        value = {k: versioned(v, out) for k, v in value.items()}
+        if "levels" in value and "path" in value and "tileSize" in value:
+            folder = os.path.join(out, value["path"])
+            files = sorted(os.path.join(dp, f) for dp, _, fs in os.walk(folder) for f in fs)
+            value["version"] = file_hash(*files)
+        return value
+    if isinstance(value, list):
+        return [versioned(v, out) for v in value]
+    if isinstance(value, str) and "?" not in value and value.endswith(VERSIONED):
+        path = os.path.join(out, value)
+        if os.path.isfile(path):
+            return f"{value}?v={file_hash(path)}"
+    return value
 
 
 def visible(scene, depsgraph, origin, target):
@@ -419,7 +452,7 @@ def main():
             else:
                 entry.pop("tiles", None)
         with open(os.path.join(out, "space.json"), "w") as fh:
-            json.dump(data, fh, indent=2)
+            json.dump(versioned(copy.deepcopy(data), out), fh, indent=2)
         print(f"Wrote {os.path.join(out, 'space.json')}")
 
     write_space()

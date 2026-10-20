@@ -2,7 +2,7 @@
   "slug": "jobs-room",
   "title": "The Jobs Room",
   "plan": {
-    "image": "plan.webp",
+    "image": "plan.webp?v=31e3e61498",
     "center": [
       0,
       0
@@ -492,7 +492,7 @@
         -1.65,
         1.6
       ],
-      "pano": "panos/office.webp",
+      "pano": "panos/office.webp?v=66dddf47b6",
       "initialYaw": -5.64,
       "arrive": {
         "yaw": -27.93,
@@ -514,8 +514,9 @@
         ],
         "bleed": 1,
         "format": "webp",
-        "preview": "panos/office/preview.webp",
-        "previewSize": 256
+        "preview": "panos/office/preview.webp?v=01f569dc1c",
+        "previewSize": 256,
+        "version": "a6c1229723"
       }
     },
     {
@@ -526,7 +527,7 @@
         0.3,
         1.6
       ],
-      "pano": "panos/bookshelf.webp",
+      "pano": "panos/bookshelf.webp?v=d723e41072",
       "initialYaw": -90.0,
       "arrive": {
         "yaw": -12.62,
@@ -548,8 +549,9 @@
         ],
         "bleed": 1,
         "format": "webp",
-        "preview": "panos/bookshelf/preview.webp",
-        "previewSize": 256
+        "preview": "panos/bookshelf/preview.webp?v=7792ea50fd",
+        "previewSize": 256,
+        "version": "5743bd6b4e"
       }
     },
     {
@@ -560,7 +562,7 @@
         0.55,
         1.6
       ],
-      "pano": "panos/desk.webp",
+      "pano": "panos/desk.webp?v=49259209f4",
       "initialYaw": -31.36,
       "arrive": {
         "yaw": -58.53,
@@ -582,8 +584,9 @@
         ],
         "bleed": 1,
         "format": "webp",
-        "preview": "panos/desk/preview.webp",
-        "previewSize": 256
+        "preview": "panos/desk/preview.webp?v=0cf99a076d",
+        "previewSize": 256,
+        "version": "eeeb83c0a7"
       }
     },
     {
@@ -594,7 +597,7 @@
         -1.05,
         1.6
       ],
-      "pano": "panos/window.webp",
+      "pano": "panos/window.webp?v=8dd6ee6ad1",
       "initialYaw": 26.72,
       "arrive": {
         "yaw": -50.0,
@@ -616,8 +619,9 @@
         ],
         "bleed": 1,
         "format": "webp",
-        "preview": "panos/window/preview.webp",
-        "previewSize": 256
+        "preview": "panos/window/preview.webp?v=038f50eae1",
+        "previewSize": 256,
+        "version": "68d1080bb0"
       }
     },
     {
@@ -628,7 +632,7 @@
         -1.55,
         1.6
       ],
-      "pano": "panos/entrance.webp",
+      "pano": "panos/entrance.webp?v=fd63aa6e0e",
       "initialYaw": 17.33,
       "arrive": {
         "yaw": -7.46,
@@ -650,8 +654,9 @@
         ],
         "bleed": 1,
         "format": "webp",
-        "preview": "panos/entrance/preview.webp",
-        "previewSize": 256
+        "preview": "panos/entrance/preview.webp?v=a4a0688788",
+        "previewSize": 256,
+        "version": "dfa7e2a37d"
       }
     }
   ],
@@ -710,8 +715,8 @@
           "spineColour": "#2f6fc0",
           "coverColour": "#5888b8",
           "coverAspect": 0.666,
-          "cover": "details/bookshelf/items/autobiography-of-a-yogi/cover.webp",
-          "spine": "details/bookshelf/items/autobiography-of-a-yogi/spine.webp",
+          "cover": "details/bookshelf/items/autobiography-of-a-yogi/cover.webp?v=bd05f255b1",
+          "spine": "details/bookshelf/items/autobiography-of-a-yogi/spine.webp?v=16dd56a6b1",
           "size": [
             0.034,
             0.216,
@@ -739,7 +744,7 @@
                 93,
                 346
               ],
-              "image": "details/bookshelf/items/autobiography-of-a-yogi/patch-w.webp"
+              "image": "details/bookshelf/items/autobiography-of-a-yogi/patch-w.webp?v=7a0f3c0761"
             }
           ]
         },
@@ -752,8 +757,8 @@
           "spineColour": "#e8d9b0",
           "coverColour": "#e8d8a8",
           "coverAspect": 0.656,
-          "cover": "details/bookshelf/items/king-lear/cover.webp",
-          "spine": "details/bookshelf/items/king-lear/spine.webp",
+          "cover": "details/bookshelf/items/king-lear/cover.webp?v=a3b864ab51",
+          "spine": "details/bookshelf/items/king-lear/spine.webp?v=3c5f23a43f",
           "size": [
             0.022,
             0.198,
@@ -781,7 +786,7 @@
                 85,
                 299
               ],
-              "image": "details/bookshelf/items/king-lear/patch-w.webp"
+              "image": "details/bookshelf/items/king-lear/patch-w.webp?v=6d4cd4be91"
             }
           ]
         },
@@ -794,8 +799,8 @@
           "spineColour": "#efece4",
           "coverColour": "#f8f8f8",
           "coverAspect": 0.631578947368421,
-          "cover": "details/bookshelf/items/dylan-thomas-collected-poems/cover.webp",
-          "spine": "details/bookshelf/items/dylan-thomas-collected-poems/spine.webp",
+          "cover": "details/bookshelf/items/dylan-thomas-collected-poems/cover.webp?v=82e426936b",
+          "spine": "details/bookshelf/items/dylan-thomas-collected-poems/spine.webp?v=43399f8826",
           "size": [
             0.026,
             0.222,
@@ -823,7 +828,7 @@
                 90,
                 379
               ],
-              "image": "details/bookshelf/items/dylan-thomas-collected-poems/patch-w.webp"
+              "image": "details/bookshelf/items/dylan-thomas-collected-poems/patch-w.webp?v=348bc40191"
             }
           ]
         },
@@ -836,8 +841,8 @@
           "spineColour": "#f1ece0",
           "coverColour": "#880808",
           "coverAspect": 0.596,
-          "cover": "details/bookshelf/items/nineteen-eighty-four/cover.webp",
-          "spine": "details/bookshelf/items/nineteen-eighty-four/spine.webp",
+          "cover": "details/bookshelf/items/nineteen-eighty-four/cover.webp?v=a6817f8919",
+          "spine": "details/bookshelf/items/nineteen-eighty-four/spine.webp?v=6480ec74fd",
           "size": [
             0.02,
             0.181,
@@ -865,7 +870,7 @@
                 99,
                 279
               ],
-              "image": "details/bookshelf/items/nineteen-eighty-four/patch-w.webp"
+              "image": "details/bookshelf/items/nineteen-eighty-four/patch-w.webp?v=57542d22bd"
             }
           ]
         },
@@ -878,8 +883,8 @@
           "spineColour": "#111111",
           "coverColour": "#080808",
           "coverAspect": 0.658,
-          "cover": "details/bookshelf/items/the-innovators-dilemma/cover.webp",
-          "spine": "details/bookshelf/items/the-innovators-dilemma/spine.webp",
+          "cover": "details/bookshelf/items/the-innovators-dilemma/cover.webp?v=de338a5716",
+          "spine": "details/bookshelf/items/the-innovators-dilemma/spine.webp?v=a91080abf4",
           "size": [
             0.022,
             0.229,
@@ -907,14 +912,14 @@
                 135,
                 351
               ],
-              "image": "details/bookshelf/items/the-innovators-dilemma/patch-w.webp"
+              "image": "details/bookshelf/items/the-innovators-dilemma/patch-w.webp?v=1072b19692"
             }
           ]
         }
       ],
       "detail": {
         "images": [
-          "details/bookshelf/closeup-1.webp"
+          "details/bookshelf/closeup-1.webp?v=9cc801093d"
         ]
       }
     },
@@ -953,10 +958,10 @@
       },
       "detail": {
         "images": [
-          "details/display/closeup-1.webp",
-          "details/display/closeup-2.webp"
+          "details/display/closeup-1.webp?v=7cd6360c5e",
+          "details/display/closeup-2.webp?v=cddac162a6"
         ],
-        "model": "details/display/model.glb"
+        "model": "details/display/model.glb?v=001c50c394"
       }
     },
     {
@@ -1034,10 +1039,10 @@
       },
       "detail": {
         "images": [
-          "details/tripod/closeup-1.webp",
-          "details/tripod/closeup-2.webp"
+          "details/tripod/closeup-1.webp?v=6cf34e8c87",
+          "details/tripod/closeup-2.webp?v=cb88c54649"
         ],
-        "model": "details/tripod/model.glb"
+        "model": "details/tripod/model.glb?v=461bfc1863"
       }
     },
     {

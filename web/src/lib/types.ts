@@ -50,6 +50,8 @@ export interface PanoTiles {
 	preview: string;
 	/** Face size of the preview, without the bleed. */
 	previewSize: number;
+	/** Changes whenever the tiles do (a hash of them), so tile URLs can be cached for good. */
+	version?: string;
 }
 
 export interface HotspotView {
