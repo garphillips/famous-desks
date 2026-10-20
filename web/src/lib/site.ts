@@ -3,7 +3,7 @@
 export const site = {
 	name: 'Famous Desks',
 	tagline: 'The Jobs room',
-	/** Always-visible credit under the wordmark. */
+	/** Always-visible credit, under the minimap. */
 	credit: { label: 'Created by Gareth', href: 'https://garphillips.com' },
 	/** The Explore / Objects / About links in the top bar (the pages still work by URL). */
 	showPages: false,

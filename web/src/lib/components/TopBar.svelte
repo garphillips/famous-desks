@@ -98,13 +98,10 @@
 <svelte:window onpointerdown={onWindowPointerDown} />
 
 <header class="topbar">
-	<div class="brand">
-		<a class="wordmark" href={exploreHref}>
-			<span class="name">{(site.name || title).toLowerCase()}</span>
-			<span class="tagline">{site.tagline}</span>
-		</a>
-		<a class="credit" href={site.credit.href} target="_blank" rel="noopener">{site.credit.label}</a>
-	</div>
+	<a class="wordmark" href={exploreHref}>
+		<span class="name">{(site.name || title).toLowerCase()}</span>
+		<span class="tagline">{site.tagline}</span>
+	</a>
 
 	<div class="right">
 		<div class="spaces" bind:this={spacesRoot} onfocusout={onFocusOut} onkeydown={onMenuKeydown} role="presentation">
@@ -181,25 +178,6 @@
 	}
 	.topbar > * {
 		pointer-events: auto;
-	}
-	.brand {
-		display: flex;
-		flex-direction: column;
-		align-items: flex-start;
-		gap: 6px;
-		min-width: 0;
-	}
-	.credit {
-		font-size: 12px;
-		font-weight: 300;
-		color: var(--ink-soft);
-		text-decoration: none;
-		text-shadow: 0 1px 10px rgba(0, 0, 0, 0.5);
-		transition: color 150ms ease;
-	}
-	.credit:hover,
-	.credit:focus-visible {
-		color: var(--accent);
 	}
 	.wordmark {
 		display: flex;

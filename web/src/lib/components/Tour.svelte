@@ -455,6 +455,7 @@
 				}}
 				onzoom={(d) => viewer?.zoomBy(d * -8)}
 			/>
+			<a class="credit" href={site.credit.href} target="_blank" rel="noopener">{site.credit.label}</a>
 		</div>
 		<div class="right">
 			{#if showHint}<HintPill />{/if}
@@ -708,6 +709,25 @@
 	}
 	.bottom > * {
 		pointer-events: auto;
+	}
+	.left {
+		display: flex;
+		flex-direction: column;
+		align-items: flex-start;
+		gap: 10px;
+	}
+	.credit {
+		font-family: var(--mono);
+		font-size: 11px;
+		letter-spacing: 0.02em;
+		color: var(--ink-soft);
+		text-decoration: none;
+		text-shadow: 0 1px 8px rgba(0, 0, 0, 0.6);
+		transition: color 150ms ease;
+	}
+	.credit:hover,
+	.credit:focus-visible {
+		color: var(--accent);
 	}
 	.right {
 		justify-self: end;
