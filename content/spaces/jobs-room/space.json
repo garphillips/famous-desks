@@ -494,6 +494,10 @@
       ],
       "pano": "panos/office.webp",
       "initialYaw": -5.64,
+      "arrive": {
+        "yaw": -27.93,
+        "pitch": -0.33
+      },
       "yawRange": [
         -98.02,
         99.95
@@ -524,6 +528,10 @@
       ],
       "pano": "panos/bookshelf.webp",
       "initialYaw": -90.0,
+      "arrive": {
+        "yaw": -12.62,
+        "pitch": -0.76
+      },
       "yawRange": [
         -141.48,
         118.84
@@ -554,6 +562,10 @@
       ],
       "pano": "panos/desk.webp",
       "initialYaw": -31.36,
+      "arrive": {
+        "yaw": -58.53,
+        "pitch": -0.47
+      },
       "yawRange": [
         -123.05,
         140.19
@@ -584,6 +596,10 @@
       ],
       "pano": "panos/window.webp",
       "initialYaw": 26.72,
+      "arrive": {
+        "yaw": -50.0,
+        "pitch": -0.29
+      },
       "yawRange": [
         -101.62,
         136.33
@@ -614,6 +630,10 @@
       ],
       "pano": "panos/entrance.webp",
       "initialYaw": 17.33,
+      "arrive": {
+        "yaw": -7.46,
+        "pitch": -0.38
+      },
       "yawRange": [
         -106.54,
         97.8

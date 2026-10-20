@@ -143,9 +143,8 @@
 	.eyebrow {
 		display: block;
 		padding: 18px 18px 0;
-		font-size: 10.5px;
-		letter-spacing: 0.22em;
-		text-transform: uppercase;
+		font-size: 13px;
+		font-weight: 300;
 		color: var(--ink-faint);
 	}
 	.context p {
@@ -178,9 +177,8 @@
 		align-items: center;
 		gap: 8px;
 		padding: 6px 6px 6px 14px;
-		font-size: 11px;
-		letter-spacing: 0.14em;
-		text-transform: uppercase;
+		font-size: 13px;
+		font-weight: 300;
 		color: var(--ink-faint);
 	}
 	.dock-bar span {

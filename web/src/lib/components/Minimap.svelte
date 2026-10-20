@@ -59,13 +59,51 @@
 	function onKey(e: KeyboardEvent, slug: string) {
 		if (e.key === 'Enter' || e.key === ' ') {
 			e.preventDefault();
-			onselect(slug);
+			select(slug);
 		}
+	}
+
+	// Grows on hover (or focus) so the viewpoints are easy to pick; on touch screens the first
+	// tap grows it and the next one picks.
+	let open = $state(false);
+	let hovering = false;
+	let disc: HTMLDivElement;
+
+	function select(slug: string) {
+		onselect(slug);
+		if (!hovering) open = false;
+	}
+	const mouse = (value: boolean) => (e: PointerEvent) => {
+		if (e.pointerType === 'mouse') open = hovering = value;
+	};
+	function onclickcapture(e: MouseEvent) {
+		if (open) return;
+		open = true;
+		e.stopPropagation();
+	}
+	function onWindowPointerDown(e: PointerEvent) {
+		if (open && !disc.contains(e.target as Node)) open = false;
 	}
 </script>
 
-<div class="minimap">
-	<div class="disc">
+<svelte:window onpointerdown={onWindowPointerDown} />
+
+<div class="minimap" class:open>
+	<div
+		class="disc"
+		bind:this={disc}
+		onpointerenter={mouse(true)}
+		onpointerleave={mouse(false)}
+		onfocusin={(e) => {
+			// keyboard focus; a tap also focuses, but that one should only grow the map
+			if ((e.target as Element).matches(':focus-visible')) open = true;
+		}}
+		onfocusout={(e) => {
+			if (!disc.contains(e.relatedTarget as Node | null)) open = false;
+		}}
+		{onclickcapture}
+		role="presentation"
+	>
 		<svg viewBox="{-view / 2} {-view / 2} {view} {view}" role="group" aria-label="Floor plan">
 			<defs>
 				<radialGradient id="cone-fill" cx="0" cy="0" r={CONE_RADIUS} gradientUnits="userSpaceOnUse"
@@ -106,11 +144,12 @@
 					tabindex="0"
 					aria-label="Go to {v.title}"
 					aria-current={v.slug === current ? 'location' : undefined}
-					onclick={() => onselect(v.slug)}
+					onclick={() => select(v.slug)}
 					onkeydown={(e) => onKey(e, v.slug)}
 				>
 					<circle class="hit" cx={sx(v.position[0])} cy={sy(v.position[1])} r="0.7" />
 					<circle class="mark" cx={sx(v.position[0])} cy={sy(v.position[1])} r={v.slug === current ? 0.16 : 0.11} />
+					<text class="name" x={sx(v.position[0])} y={sy(v.position[1]) - 0.3}>{v.title}</text>
 				</g>
 			{/each}
 		</svg>
@@ -128,8 +167,13 @@
 		gap: 10px;
 	}
 	.disc {
+		--grow: 2.2;
+		position: relative;
+		z-index: 1;
 		width: 156px;
 		height: 156px;
+		transform-origin: 0 100%;
+		transition: transform 280ms cubic-bezier(0.2, 0.8, 0.2, 1);
 		border-radius: 50%;
 		background: var(--panel);
 		backdrop-filter: var(--blur);
@@ -189,6 +233,37 @@
 		stroke: var(--panel-solid);
 		stroke-width: 0.05;
 	}
+	/* names show once the map has grown enough to read them */
+	.name {
+		font-size: 0.32px;
+		font-weight: 500;
+		text-anchor: middle;
+		fill: var(--ink-soft);
+		stroke: var(--panel-solid);
+		stroke-width: 0.08px;
+		paint-order: stroke;
+		pointer-events: none;
+		opacity: 0;
+		transition: opacity 200ms ease;
+	}
+	.open .name {
+		opacity: 1;
+		transition-delay: 120ms;
+	}
+	.vp.current .name,
+	.vp:hover .name {
+		fill: var(--ink);
+	}
+	.open .disc {
+		transform: scale(var(--grow));
+	}
+	.zoom {
+		transition: opacity 200ms ease;
+	}
+	.open .zoom {
+		opacity: 0;
+		pointer-events: none;
+	}
 	.vp:focus-visible .hit {
 		stroke: var(--accent);
 		stroke-width: 0.04;
@@ -217,6 +292,7 @@
 
 	@media (max-width: 600px) {
 		.disc {
+			--grow: 2.5;
 			width: 112px;
 			height: 112px;
 			padding: 6px;

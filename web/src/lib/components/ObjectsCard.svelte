@@ -95,10 +95,8 @@
 		flex: 1;
 	}
 	.eyebrow {
-		font-size: 10.5px;
-		font-weight: 500;
-		letter-spacing: 0.2em;
-		text-transform: uppercase;
+		font-size: 13px;
+		font-weight: 300;
 		color: var(--ink-faint);
 	}
 	.sep {
@@ -106,9 +104,10 @@
 	}
 	h3 {
 		margin: 2px 0 0;
-		font-family: var(--serif);
-		font-weight: 500;
-		font-size: 24px;
+		font-family: var(--heading);
+		font-weight: 600;
+		font-size: 20px;
+		letter-spacing: -0.01em;
 		line-height: 1.15;
 	}
 	p {

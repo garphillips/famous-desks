@@ -1,5 +1,4 @@
-@import '@fontsource/cormorant-garamond/500.css';
-@import '@fontsource-variable/inter';
+@import '@fontsource-variable/archivo';
 
 :root {
 	color-scheme: dark;
@@ -12,8 +11,10 @@
 	--accent: #d8b46e;
 	--bg: #0e0e0d;
 	--radius: 14px;
-	--serif: 'Cormorant Garamond', Georgia, serif;
-	--sans: 'Inter Variable', system-ui, sans-serif;
+	/* Archivo throughout, by weight: body 400, labels 500, headings 600, the wordmark 700 */
+	--sans: 'Archivo Variable', system-ui, sans-serif;
+	--heading: 'Archivo Variable', system-ui, sans-serif;
+	--display: 'Archivo Variable', system-ui, sans-serif;
 	--blur: blur(14px) saturate(1.2);
 	--accent-wash: rgba(216, 180, 110, 0.1);
 	--page-width: 1200px;

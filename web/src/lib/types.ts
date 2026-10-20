@@ -17,6 +17,8 @@ export interface Viewpoint {
 	/** The directions the view may face, clockwise from the first to the second (degrees, 0 = north);
 	 *  everything else (a wall there are no photos of) stays out of the frame. */
 	yawRange?: [number, number];
+	/** The view when you go here from the minimap (all of a space's viewpoints face the same landmark). */
+	arrive?: { yaw: number; pitch: number };
 	/** Cube-face tile pyramid of the same panorama, when it was rendered as cube faces. */
 	tiles?: PanoTiles;
 }

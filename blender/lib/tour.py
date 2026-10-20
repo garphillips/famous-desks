@@ -45,6 +45,12 @@ def viewpoint(slug, title, xy, order, look_at=None, height=EYE_HEIGHT, res=(4096
 
 
 
+def arrive_facing(point):
+    """Where (x, y, z) every viewpoint faces when you go to it from the website's minimap,
+    so each arrival starts from the same landmark (e.g. a window)."""
+    bpy.context.scene["arrive_facing"] = list(point)
+
+
 def unseen_wall(a, b):
     """A wall there are no photos of, from floor point a to b (x, y): export.py gives each
     viewpoint a yawRange that keeps the website's views off it."""

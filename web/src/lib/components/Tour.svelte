@@ -8,7 +8,6 @@
 	import TopBar from './TopBar.svelte';
 	import HotspotMarker from './HotspotMarker.svelte';
 	import Minimap from './Minimap.svelte';
-	import SceneBar from './SceneBar.svelte';
 	import HintPill from './HintPill.svelte';
 	import Icon from './Icon.svelte';
 	import DetailPanel from './DetailPanel.svelte';
@@ -48,6 +47,8 @@
 	/** The field of view the focus zoomed to (wider than focus.fov on portrait screens). */
 	let focusFov = 0;
 	let pendingFocus: Hotspot | null = null;
+	/** The next move came from the minimap: land facing the space's landmark (viewpoint.arrive). */
+	let fromMinimap = false;
 	let shelf: ShelfItems | null = null;
 	let hoverItem: HotspotItem | null = $state(null);
 	let hoverAt = $state({ x: 0, y: 0 });
@@ -141,6 +142,8 @@
 		const target = linked ? space.hotspots.find((h) => h.slug === linked && h.views[v.slug]) : null;
 		viewer.settle();
 		viewer.yawRange = v.yawRange ?? null;
+		const minimap = fromMinimap;
+		fromMinimap = false;
 		const from = space.viewpoints.find((x) => panoUrl(x) === viewer.url);
 		if (from === v && !target) {
 			loading = moving = false;
@@ -155,7 +158,11 @@
 			const yaw = (Math.atan2(v.position[0] - from.position[0], v.position[1] - from.position[1]) * 180) / Math.PI;
 			// heading for a close-up (the bookshelf): the move itself ends on it
 			landing = pendingFocus?.focus?.viewpoint === v.slug ? pendingFocus : null;
-			const view = landing ? focusView(landing) : { yaw };
+			const view = landing
+				? focusView(landing)
+				: minimap && v.arrive
+					? { ...v.arrive, fov: DEFAULT_FOV }
+					: { yaw };
 			shown = viewer.transitionTo(panoSource(v), { ...view, reduced: prefersReducedMotion() });
 		} else {
 			loading = true;
@@ -185,7 +192,7 @@
 			});
 	}
 
-	/** The nearest viewpoints and the scene bar's previous/next: the likely next moves. */
+	/** The nearest viewpoints and the previous/next in tour order: the likely next moves. */
 	function neighbours(v: Viewpoint) {
 		const all = space.viewpoints;
 		const i = all.indexOf(v);
@@ -198,7 +205,7 @@
 	/** The hotspot (e.g. the bookshelf) whose picking view lives at viewpoint `slug`, if any. */
 	const focusAt = (slug: string) => space.hotspots.find((h) => h.focus?.viewpoint === slug && h.items?.length);
 
-	/** Scene bar and minimap: a viewpoint with a picking view (the bookshelf) opens straight into it. */
+	/** Minimap: a viewpoint with a picking view (the bookshelf) opens straight into it. */
 	function goToViewpoint(slug: string, target = focusAt(slug)) {
 		if (slug === viewpoint.slug) {
 			if (target && !focus && !moving && !loading) startFocus(target);
@@ -420,12 +427,19 @@
 				current={viewpoint.slug}
 				{yaw}
 				{hfov}
-				onselect={goToViewpoint}
+				onselect={(slug) => {
+					const here = slug === viewpoint.slug;
+					const v = space.viewpoints.find((x) => x.slug === slug);
+					// already here: turn back to the landmark (the bookshelf opens its close-up instead)
+					if (here && !focusAt(slug) && v?.arrive && !moving && !loading) {
+						viewer?.zoomTo(v.arrive.yaw, v.arrive.pitch, DEFAULT_FOV);
+						return;
+					}
+					fromMinimap = !here;
+					goToViewpoint(slug);
+				}}
 				onzoom={(d) => viewer?.zoomBy(d * -8)}
 			/>
-		</div>
-		<div class="center">
-			<SceneBar viewpoints={space.viewpoints} current={viewpoint.slug} onselect={goToViewpoint} />
 		</div>
 		<div class="right">
 			{#if showHint}<HintPill />{/if}
@@ -656,7 +670,7 @@
 		right: 0;
 		bottom: 0;
 		display: grid;
-		grid-template-columns: 1fr auto 1fr;
+		grid-template-columns: auto minmax(0, 1fr);
 		align-items: end;
 		gap: 16px;
 		padding: 24px 28px;
@@ -673,38 +687,22 @@
 		gap: 12px;
 	}
 
-	/* Stacked: minimap and hint on one row, scene bar full width below. */
 	@media (max-width: 1040px) {
 		.bottom {
-			grid-template-columns: auto minmax(0, 1fr);
-			grid-template-areas:
-				'left right'
-				'center center';
 			padding: 16px;
 			padding-bottom: max(16px, env(safe-area-inset-bottom));
 			gap: 12px;
 		}
-		.left {
-			grid-area: left;
-		}
-		.right {
-			grid-area: right;
-			min-width: 0;
-		}
-		.center {
-			grid-area: center;
-			justify-self: center;
-			min-width: 0;
-			max-width: 100%;
-		}
 	}
-	/* Phone: the music gets a row of its own, above the scene bar. */
+	/* Phone: minimap and hint on one row, the music full width below. */
 	@media (max-width: 760px) {
 		.bottom {
 			grid-template-areas:
 				'left right'
-				'music music'
-				'center center';
+				'music music';
+		}
+		.left {
+			grid-area: left;
 		}
 		.right {
 			display: contents;

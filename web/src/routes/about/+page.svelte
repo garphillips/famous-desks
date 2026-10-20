@@ -34,7 +34,7 @@
 				<li><strong>Drag</strong> to look around, or use the arrow keys.</li>
 				<li><strong>Scroll</strong> or pinch to zoom in and out.</li>
 				<li><strong>Click a pin</strong> to see what an object is, and again (or use its arrow) to look closer.</li>
-				<li><strong>Change spot</strong> with the scene bar or the floor plan.</li>
+				<li><strong>Change spot</strong> with the floor plan.</li>
 			</ul>
 		</section>
 
@@ -66,30 +66,29 @@
 		padding: 5px 12px;
 		border: 1px dashed var(--accent);
 		border-radius: 999px;
-		font-size: 11px;
-		font-weight: 500;
-		letter-spacing: 0.16em;
-		text-transform: uppercase;
+		font-size: 13px;
+		font-weight: 300;
 		color: var(--accent);
 	}
 	.eyebrow {
-		font-size: 10.5px;
-		font-weight: 500;
-		letter-spacing: 0.24em;
-		text-transform: uppercase;
+		font-size: 13px;
+		font-weight: 300;
 		color: var(--accent);
 	}
 	h1 {
 		margin: 12px 0 18px;
-		font-family: var(--serif);
-		font-weight: 500;
-		font-size: clamp(40px, 7vw, 60px);
+		font-family: var(--heading);
+		font-weight: 600;
+		font-size: clamp(34px, 6vw, 50px);
+		letter-spacing: -0.01em;
 		line-height: 1.02;
 	}
 	.lede {
 		margin: 0;
-		font-family: var(--serif);
-		font-size: 24px;
+		font-family: var(--heading);
+		font-weight: 600;
+		font-size: 20px;
+		letter-spacing: -0.01em;
 		line-height: 1.4;
 		color: var(--ink-soft);
 	}
@@ -100,9 +99,10 @@
 	}
 	h2 {
 		margin: 0 0 14px;
-		font-family: var(--serif);
-		font-weight: 500;
-		font-size: 28px;
+		font-family: var(--heading);
+		font-weight: 600;
+		font-size: 23px;
+		letter-spacing: -0.01em;
 		line-height: 1.15;
 	}
 	p,

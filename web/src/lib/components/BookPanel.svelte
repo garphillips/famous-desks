@@ -109,16 +109,16 @@
 		animation: fade 320ms ease both;
 	}
 	.eyebrow {
-		font-size: 10.5px;
-		letter-spacing: 0.22em;
-		text-transform: uppercase;
+		font-size: 13px;
+		font-weight: 300;
 		color: var(--ink-faint);
 	}
 	h2 {
 		margin: 10px 0 4px;
-		font-family: var(--serif);
-		font-weight: 500;
-		font-size: 36px;
+		font-family: var(--heading);
+		font-weight: 600;
+		font-size: 30px;
+		letter-spacing: -0.01em;
 		line-height: 1.05;
 	}
 	.author {

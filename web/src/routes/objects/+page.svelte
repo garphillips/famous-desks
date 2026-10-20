@@ -74,17 +74,16 @@
 		margin-bottom: 56px;
 	}
 	.eyebrow {
-		font-size: 10.5px;
-		font-weight: 500;
-		letter-spacing: 0.24em;
-		text-transform: uppercase;
+		font-size: 13px;
+		font-weight: 300;
 		color: var(--accent);
 	}
 	h1 {
 		margin: 12px 0 14px;
-		font-family: var(--serif);
-		font-weight: 500;
-		font-size: clamp(40px, 6vw, 60px);
+		font-family: var(--heading);
+		font-weight: 600;
+		font-size: clamp(34px, 5vw, 50px);
+		letter-spacing: -0.01em;
 		line-height: 1.02;
 	}
 	.intro p {
@@ -107,9 +106,10 @@
 	}
 	h2 {
 		margin: 0;
-		font-family: var(--serif);
-		font-weight: 500;
-		font-size: 32px;
+		font-family: var(--heading);
+		font-weight: 600;
+		font-size: 26px;
+		letter-spacing: -0.01em;
 		line-height: 1.1;
 	}
 	.count {

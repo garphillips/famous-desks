@@ -99,7 +99,7 @@
 
 <header class="topbar">
 	<a class="wordmark" href={exploreHref}>
-		<span class="name">{(site.name || title).toLowerCase()} <span class="dash">—</span></span>
+		<span class="name">{(site.name || title).toLowerCase()}</span>
 		<span class="tagline">{site.tagline}</span>
 	</a>
 
@@ -115,16 +115,9 @@
 				onclick={() => (menuOpen ? closeMenu() : openMenu())}
 				onkeydown={onButtonKeydown}
 			>
-				<svg class="stack" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor"
-					stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-					<path d="M12 3.5l8.5 4.5L12 12.5 3.5 8z" />
-					<path d="M3.5 12.2L12 16.7l8.5-4.5M3.5 16.2L12 20.7l8.5-4.5" />
-				</svg>
+				<span class="stack"><Icon name="stack" size={16} /></span>
 				<span class="label">Spaces</span>
-				<svg class="chevron" viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor"
-					stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-					<path d="M6 9.5l6 6 6-6" />
-				</svg>
+				<span class="chevron"><Icon name="chevron-down" size={11} /></span>
 			</button>
 
 			{#if menuOpen}
@@ -195,23 +188,18 @@
 		text-shadow: 0 1px 12px rgba(0, 0, 0, 0.45);
 	}
 	.name {
-		font-family: var(--serif);
-		font-weight: 500;
-		font-size: 30px;
+		font-family: var(--display);
+		font-weight: 700;
+		font-size: 27px;
 		line-height: 1;
-		letter-spacing: 0.01em;
+		letter-spacing: -0.01em;
 		white-space: nowrap;
 		overflow: hidden;
 		text-overflow: ellipsis;
 	}
-	.dash {
-		font-weight: 400;
-	}
 	.tagline {
-		font-size: 10.5px;
-		font-weight: 500;
-		letter-spacing: 0.24em;
-		text-transform: uppercase;
+		font-size: 13px;
+		font-weight: 300;
 		color: var(--ink-soft);
 	}
 	.right {
@@ -285,9 +273,11 @@
 		border-color: var(--ink-soft);
 	}
 	.stack {
+		display: inline-flex;
 		color: var(--accent);
 	}
 	.chevron {
+		display: inline-flex;
 		color: var(--ink-soft);
 		transition: transform 180ms ease;
 	}
@@ -320,10 +310,8 @@
 		display: flex;
 		justify-content: space-between;
 		margin: 0 12px 8px;
-		font-size: 10.5px;
-		font-weight: 500;
-		letter-spacing: 0.24em;
-		text-transform: uppercase;
+		font-size: 13px;
+		font-weight: 300;
 		color: var(--ink-faint);
 	}
 	.count {
@@ -363,8 +351,10 @@
 		position: relative;
 		flex: 1;
 		min-width: 0;
-		font-family: var(--serif);
-		font-size: 21px;
+		font-family: var(--heading);
+		font-weight: 600;
+		font-size: 18px;
+		letter-spacing: -0.01em;
 		line-height: 1.15;
 	}
 	li a.here {
@@ -384,19 +374,15 @@
 	}
 	.badge {
 		margin-left: auto;
-		font-size: 10px;
-		font-weight: 500;
-		letter-spacing: 0.14em;
-		text-transform: uppercase;
+		font-size: 12px;
+		font-weight: 300;
 		white-space: nowrap;
 		color: var(--accent);
 	}
 	.soon {
 		margin: 6px 12px 6px 42px;
-		font-size: 10.5px;
-		font-weight: 500;
-		letter-spacing: 0.24em;
-		text-transform: uppercase;
+		font-size: 13px;
+		font-weight: 300;
 		color: var(--ink-faint);
 	}
 	.empty {
@@ -406,9 +392,6 @@
 	}
 
 	@media (max-width: 400px) {
-		.topbar .dash {
-			display: none;
-		}
 		.topbar .name {
 			font-size: 21px;
 		}

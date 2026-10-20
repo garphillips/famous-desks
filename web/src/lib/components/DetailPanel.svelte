@@ -299,16 +299,16 @@
 		padding: 22px 24px 28px;
 	}
 	.eyebrow {
-		font-size: 10.5px;
-		letter-spacing: 0.22em;
-		text-transform: uppercase;
+		font-size: 13px;
+		font-weight: 300;
 		color: var(--ink-faint);
 	}
 	h2 {
 		margin: 8px 0 12px;
-		font-family: var(--serif);
-		font-weight: 500;
-		font-size: 34px;
+		font-family: var(--heading);
+		font-weight: 600;
+		font-size: 28px;
+		letter-spacing: -0.01em;
 		line-height: 1.05;
 	}
 	p {

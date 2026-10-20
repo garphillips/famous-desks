@@ -473,6 +473,8 @@ def build_tour(c):
     """Viewpoints, hotspots, close-up cameras and reference cameras."""
     # No photos show the south wall (the door's is presumed), so the tour never faces it.
     tour.unseen_wall((-W / 2, -D / 2), (W / 2, -D / 2))
+    # minimap moves land facing the north-west window (the one by the bookshelf), centred
+    tour.arrive_facing((NW_WINDOW[0], D / 2, (0.85 + 2.3) / 2))
     tour.viewpoint("office", "Office", (0.35, -1.65), 0, look_at=(DESK_X, WALL))
     # sharper (4096 px faces) so the featured books' spines read when zoomed in
     tour.viewpoint("bookshelf", "Bookshelf", (-1.25, 0.3), 1, look_at=(-W / 2, 0.3), face_size=4096)

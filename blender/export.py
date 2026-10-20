@@ -340,6 +340,9 @@ def main():
         if "look_at" in vp:
             tx, ty = vp["look_at"]
             entry["initialYaw"] = yaw_pitch(vp.location, (tx, ty, vp.location.z))[0]
+        if "arrive_facing" in scene:
+            yaw, pitch, _ = yaw_pitch(vp.location, tuple(scene["arrive_facing"]))
+            entry["arrive"] = {"yaw": yaw, "pitch": pitch}
         if "unseen_wall" in scene:
             ax, ay, bx, by = scene["unseen_wall"]
             entry["yawRange"] = yaw_range(vp.location, (ax, ay), (bx, by))
