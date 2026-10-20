@@ -289,6 +289,7 @@ class HeroBuilder:
                 for f in res["faces"]:
                     for v in f.verts:
                         verts.add(v)
+                verts = self._compact(verts)
         if mat not in self.mats:
             self.mats.append(mat)
         index = self.mats.index(mat)
@@ -296,6 +297,23 @@ class HeroBuilder:
             face.material_index = index
             face.smooth = True
         return verts
+
+    def _compact(self, verts):
+        """Copy the mesh into a fresh BMesh and return `verts` as its counterparts.
+
+        Bevel deletes faces and edges in an order that depends on memory addresses,
+        so it varies from run to run, and the next parts reuse those freed slots in
+        that order. Element order then differs between builds, later bevels give
+        slightly different results, and the exported .glb files change byte for
+        byte even when nothing in the scene did. A copy lays the elements out in
+        order with no free slots, so every build makes the same mesh. Callers must
+        not keep elements from before this call (a part's verts are used at once)."""
+        self.bm.verts.index_update()
+        keep = [v.index for v in verts]
+        old, self.bm = self.bm, self.bm.copy()
+        old.free()
+        self.bm.verts.ensure_lookup_table()
+        return {self.bm.verts[i] for i in keep}
 
     @staticmethod
     def _local(center, rot):
@@ -497,7 +515,7 @@ class HeroBuilder:
                 faces.append(self.bm.faces.new((vf[kk], vf[k], vb[k], vb[kk])))
             bmesh.ops.recalc_face_normals(self.bm, faces=faces)
             bmesh.ops.transform(self.bm, matrix=self.matrix, verts=vf + vb)
-            verts |= self._finish(vf + vb, mat, bevel, 2)
+            verts = {v for v in verts if v.is_valid} | self._finish(vf + vb, mat, bevel, 2)
         return verts
 
     def planar_uvs(self, verts, to_local, origin, size):
