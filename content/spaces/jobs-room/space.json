@@ -964,6 +964,41 @@
       }
     },
     {
+      "slug": "speaker",
+      "title": "On the speaker",
+      "kind": "hotspot",
+      "icon": "music",
+      "summary": "Jobs was a lifelong Bob Dylan fan: he opened Apple's 1984 shareholders' meeting by reciting a verse of \"The Times They Are a-Changin'\". A few songs for the room, starting with \"One Too Many Mornings\".",
+      "position": [
+        0.285,
+        1.81,
+        0.91
+      ],
+      "views": {
+        "office": {
+          "yaw": -1.08,
+          "pitch": -11.28,
+          "distance": 3.529
+        },
+        "bookshelf": {
+          "yaw": 45.47,
+          "pitch": -17.77,
+          "distance": 2.261
+        },
+        "desk": {
+          "yaw": -27.82,
+          "pitch": -25.84,
+          "distance": 1.583
+        },
+        "entrance": {
+          "yaw": 23.55,
+          "pitch": -10.66,
+          "distance": 3.73
+        }
+      },
+      "playlist": "09XZ2JIqeA6kxT3NhsM9iG"
+    },
+    {
       "slug": "camera",
       "title": "Camera",
       "kind": "hotspot",

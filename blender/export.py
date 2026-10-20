@@ -356,6 +356,8 @@ def main():
             items = sorted((o for o in scene.objects if o.get("item_of") == hs["slug"]),
                            key=lambda o: o["item_order"])
             entry["items"] = [item_entry(o, hs["slug"], out) for o in items]
+        if hs.get("playlist"):
+            entry["playlist"] = hs["playlist"]
         if hs.get("target") is not None:
             entry["target"] = hs["target"]
             if hs["target"]:

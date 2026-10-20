@@ -482,6 +482,12 @@ def build_tour(c):
                  focus=dict(viewpoint="bookshelf", target=(SHELF_FRONT, 0.2, 1.25), fov=42))
     tour.hotspot("display", "The display", (DISPLAY_LOC[0], DISPLAY_LOC[1], 1.3), model="display")
     tour.hotspot("print", "The print", (DESK_X, WALL - 0.05, 2.25), icon="info")
+    # in front of the desk speaker's baffle (desk top 0.74 m, speaker 0.30 m tall)
+    tour.hotspot("speaker", "On the speaker", (DESK_X + 0.31, WALL - 0.34, 0.91), icon="music",
+                 summary="Jobs was a lifelong Bob Dylan fan: he opened Apple's 1984 shareholders' meeting "
+                         "by reciting a verse of \"The Times They Are a-Changin'\". A few songs for the room, "
+                         "starting with \"One Too Many Mornings\".",
+                 playlist="09XZ2JIqeA6kxT3NhsM9iG")
     tour.hotspot("camera", "Camera", (CAMERA_LOC[0], CAMERA_LOC[1], 0.55), model="camera")
     tour.hotspot("tripod", "Tripod", (TRIPOD_LOC[0], TRIPOD_LOC[1], 1.6), model="tripod")
     tour.hotspot("east_window", "Garden window", (W / 2 - 0.1, E_WINDOW[0], 1.85))

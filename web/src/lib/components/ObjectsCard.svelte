@@ -11,7 +11,7 @@
 	}: { hotspot: Hotspot; href: string; spaceTitle: string; viewpointTitle: string; image?: string } =
 		$props();
 
-	const icon = $derived(hotspot.icon === 'info' ? 'info' : 'eye');
+	const icon = $derived(hotspot.icon === 'door' ? 'eye' : hotspot.icon);
 </script>
 
 <a class="card" {href}>

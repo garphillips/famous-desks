@@ -110,7 +110,7 @@ export interface Hotspot {
 	slug: string;
 	title: string;
 	kind: 'hotspot' | 'door';
-	icon: 'eye' | 'info' | 'door';
+	icon: 'eye' | 'info' | 'door' | 'music';
 	summary: string;
 	position: [number, number, number];
 	/** Only viewpoints the hotspot is visible from. */
@@ -126,6 +126,8 @@ export interface Hotspot {
 	/** Zoom-in target, for hotspots whose items can be picked (e.g. books on a shelf). */
 	focus?: HotspotFocus;
 	items?: HotspotItem[];
+	/** Spotify playlist id: the hotspot opens a player for it. */
+	playlist?: string;
 }
 
 export interface FloorPlan {

@@ -13,6 +13,7 @@
 	import Icon from './Icon.svelte';
 	import DetailPanel from './DetailPanel.svelte';
 	import BookPanel from './BookPanel.svelte';
+	import MusicPlayer from './MusicPlayer.svelte';
 
 	let { space, viewpointSlug }: { space: Space; viewpointSlug: string } = $props();
 
@@ -33,6 +34,9 @@
 	let pinned: string | null = $state(null);
 	let detail: Hotspot | null = $state(null);
 	let detailImage = $state('');
+	// The speaker's playlist: open as a panel, or docked in the corner while it plays.
+	let music: Hotspot | null = $state.raw(null);
+	let musicOpen = $state(false);
 	let showHint = $state(true);
 	const thumbnails: Record<string, string> = $state({});
 
@@ -206,6 +210,13 @@
 	function openDetail(h: Hotspot) {
 		if (h.kind === 'door') {
 			if (h.target) goto(h.arrive ? `/${h.target}/${h.arrive}` : `/${h.target}`);
+			return;
+		}
+		if (h.playlist) {
+			pinned = peek = null;
+			showHint = false;
+			music = h;
+			musicOpen = true;
 			return;
 		}
 		if (h.focus && h.items?.length) {
@@ -413,6 +424,20 @@
 			{#if showHint}<HintPill />{/if}
 		</div>
 	</div>
+
+	{#if music}
+		<MusicPlayer
+			hotspot={music}
+			open={musicOpen}
+			spaceTitle={space.title}
+			onopen={() => (musicOpen = true)}
+			onclose={(playing) => {
+				musicOpen = false;
+				if (!playing) music = null;
+				canvas.focus();
+			}}
+		/>
+	{/if}
 
 	{#if openItem && focus}
 		<BookPanel
