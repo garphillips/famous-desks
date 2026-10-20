@@ -1,0 +1,18 @@
+# Cloudflare caching (copied into build/ by `npm run build`).
+# The app's own files are content-hashed: cache them for good.
+/_app/immutable/*
+  Cache-Control: public, max-age=31536000, immutable
+
+# Rendered images keep their names between renders: a day, then revalidate in the background.
+/spaces/*/panos/*
+  Cache-Control: public, max-age=86400, stale-while-revalidate=604800
+/spaces/*/details/*
+  Cache-Control: public, max-age=86400, stale-while-revalidate=604800
+/spaces/*/plan.webp
+  Cache-Control: public, max-age=86400, stale-while-revalidate=604800
+
+# The tour data: short, so content updates show up quickly.
+/spaces/index.json
+  Cache-Control: public, max-age=300
+/spaces/*/space.json
+  Cache-Control: public, max-age=300

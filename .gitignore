@@ -15,3 +15,6 @@ __pycache__/
 
 # Agent worktrees
 .claude/worktrees/
+
+# Cloudflare (wrangler) local state
+.wrangler/

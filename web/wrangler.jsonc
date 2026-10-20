@@ -1,0 +1,15 @@
+// Cloudflare Workers, static assets only: the built site (web/build) on famousdesks.com.
+{
+	"$schema": "node_modules/wrangler/config-schema.json",
+	"name": "famous-desks",
+	"compatibility_date": "2026-10-01",
+	"assets": {
+		"directory": "./build",
+		// every tour URL (/jobs-room/desk, ...) gets the app shell
+		"not_found_handling": "single-page-application"
+	},
+	"routes": [
+		{ "pattern": "famousdesks.com", "custom_domain": true },
+		{ "pattern": "www.famousdesks.com", "custom_domain": true }
+	]
+}
