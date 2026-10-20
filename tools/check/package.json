@@ -1,0 +1,12 @@
+{
+	"name": "famous-desks-check",
+	"private": true,
+	"type": "module",
+	"description": "Headless-Chrome checks for the tour: screenshots, interactions and smoke tests.",
+	"scripts": {
+		"check": "node check.mjs"
+	},
+	"dependencies": {
+		"puppeteer-core": "23.11.1"
+	}
+}
