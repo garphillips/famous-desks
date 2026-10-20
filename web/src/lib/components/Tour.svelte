@@ -13,6 +13,7 @@
 	import DetailPanel from './DetailPanel.svelte';
 	import BookPanel from './BookPanel.svelte';
 	import MusicPlayer from './MusicPlayer.svelte';
+	import { site } from '$lib/site';
 	import SpeakerRipples from './SpeakerRipples.svelte';
 
 	let { space, viewpointSlug }: { space: Space; viewpointSlug: string } = $props();
@@ -58,7 +59,9 @@
 	const viewpoint = $derived(
 		space.viewpoints.find((v) => v.slug === viewpointSlug) ?? space.viewpoints[0]
 	);
-	const here = $derived(space.hotspots.filter((h) => h.views[viewpoint.slug] && !h.playlist));
+	const here = $derived(
+		space.hotspots.filter((h) => h.views[viewpoint.slug] && !h.playlist && !site.hiddenHotspots.includes(h.slug))
+	);
 	const openSlug = $derived(pinned ?? peek);
 
 	function updateView() {

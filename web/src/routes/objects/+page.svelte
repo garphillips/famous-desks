@@ -2,6 +2,7 @@
 	import TopBar from '$lib/components/TopBar.svelte';
 	import ObjectsCard from '$lib/components/ObjectsCard.svelte';
 	import { bestViewpoint, hotspotHref } from '$lib/content';
+	import { site } from '$lib/site';
 
 	let { data } = $props();
 
@@ -11,7 +12,7 @@
 			.map((space) => ({
 				space,
 				objects: space.hotspots.flatMap((hotspot) => {
-					if (hotspot.kind !== 'hotspot' || hotspot.playlist) return [];
+					if (hotspot.kind !== 'hotspot' || hotspot.playlist || site.hiddenHotspots.includes(hotspot.slug)) return [];
 					const viewpoint = bestViewpoint(space, hotspot);
 					return viewpoint ? [{ hotspot, viewpoint }] : [];
 				})

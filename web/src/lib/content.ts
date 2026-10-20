@@ -1,3 +1,4 @@
+import { site } from '$lib/site';
 import { spaceUrl, type Hotspot, type Space, type SpaceIndex, type Viewpoint } from '$lib/types';
 
 type Fetch = typeof fetch;
@@ -14,9 +15,11 @@ export async function loadSpace(fetch: Fetch, slug: string): Promise<Space> {
 	return res.json();
 }
 
+/** Every space shown on the site (site.hiddenSpaces aren't loaded: they may not be deployed). */
 export async function loadSpaces(fetch: Fetch): Promise<Space[]> {
 	const index = await loadIndex(fetch);
-	return Promise.all(index.spaces.map((s) => loadSpace(fetch, s.slug)));
+	const shown = index.spaces.filter((s) => !site.hiddenSpaces.includes(s.slug));
+	return Promise.all(shown.map((s) => loadSpace(fetch, s.slug)));
 }
 
 /** The viewpoint the hotspot is seen closest from, or undefined if it isn't visible anywhere. */

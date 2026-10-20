@@ -6,5 +6,7 @@ export const site = {
 	/** The Explore / Objects / About links in the top bar (the pages still work by URL). */
 	showPages: false,
 	/** Spaces left out of the Spaces menu for now. */
-	hiddenSpaces: ['hallway']
+	hiddenSpaces: ['hallway'],
+	/** Hotspots (by slug) left out of the tour and the Objects page for now. */
+	hiddenHotspots: ['tripod', 'east_window']
 };
