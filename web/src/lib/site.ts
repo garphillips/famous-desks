@@ -2,5 +2,9 @@
  *  when it is empty). */
 export const site = {
 	name: 'Famous Desks',
-	tagline: 'Virtual office tour'
+	tagline: 'Virtual office tour',
+	/** The Explore / Objects / About links in the top bar (the pages still work by URL). */
+	showPages: false,
+	/** Spaces left out of the Spaces menu for now. */
+	hiddenSpaces: ['hallway']
 };

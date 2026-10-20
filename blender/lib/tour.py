@@ -44,6 +44,12 @@ def viewpoint(slug, title, xy, order, look_at=None, height=EYE_HEIGHT, res=(4096
     return cam
 
 
+
+def unseen_wall(a, b):
+    """A wall there are no photos of, from floor point a to b (x, y): export.py gives each
+    viewpoint a yawRange that keeps the website's views off it."""
+    bpy.context.scene["unseen_wall"] = [*a, *b]
+
 # Cube faces for sharp panoramas: six perspective cameras with a 90° field of view at the
 # viewpoint. Per face: (forward, image right, image up) in Blender axes (x east, y north, z up).
 # The four side faces stand upright; u is what you see tilting your head back from facing
@@ -109,13 +115,13 @@ def remove_cube_face_camera():
 
 
 def hotspot(slug, title, loc, icon="eye", summary="", kind="hotspot", **extra):
-    """icon: 'eye' (look closer), 'info' or 'music'. kind: 'hotspot' or 'door' (links to another space).
+    """icon: 'eye' (look closer), 'info', 'music' or 'books'. kind: 'hotspot' or 'door' (links to another space).
 
     extra: e.g. target='<space>' for doors, model='<object name>' to export
     that object as details/<slug>/model.glb for the 3D view, or
     focus=dict(viewpoint=<slug>, target=(x, y, z), fov=<degrees>): clicking the hotspot
-    moves to that viewpoint and zooms in on the target, where the hotspot's items
-    (objects tagged item_of=<slug>, e.g. lib/featured.py's books) can be picked, or
+    moves to that viewpoint and zooms in on the target (e.g. a print on the wall), where the
+    hotspot's items, if any (objects tagged item_of=<slug>, e.g. lib/featured.py's books), can be picked, or
     playlist='<Spotify playlist id>' (with icon='music'): the hotspot opens its player.
     """
     empty = bpy.data.objects.new(f"hs_{slug}", None)

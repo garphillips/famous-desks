@@ -10,7 +10,7 @@ manifests (sources, licences, credits) are committed.
 Manifest format (one file per area of work, e.g. textures.json):
     {
       "oak_floor": {
-        "kind": "texture",               # texture | model | hdri | cover
+        "kind": "texture",               # texture | model | hdri | cover | artwork
         "title": "Oak floor 01",
         "source": "Poly Haven",
         "page": "https://polyhaven.com/a/...",
@@ -19,6 +19,7 @@ Manifest format (one file per area of work, e.g. textures.json):
         "files": [{"url": "https://...", "name": "oak_floor_diff_2k.jpg"}]
       }
     }
+A file without a "url" was supplied by hand ("supplied" says how): copy it into the cache yourself.
 Zip files are extracted into the asset's folder (path-checked).
 """
 
@@ -34,7 +35,9 @@ import zipfile
 HERE = os.path.dirname(os.path.abspath(__file__))
 ALLOWED_LICENSES = {"CC0", "CC-BY-4.0"}
 # Book covers are the publishers' artwork, shown only to identify the book (kind "cover").
-KIND_LICENSES = {"cover": {"cover-art"}}
+# Artworks that hung in a real office (kind "artwork") are reproduced unlicensed for now:
+# license or replace them before the site earns money.
+KIND_LICENSES = {"cover": {"cover-art"}, "artwork": {"all-rights-reserved"}}
 CACHE = os.environ.get(
     "OFFICE_TOUR_ASSETS", os.path.expanduser("~/Library/Caches/office-tour/assets")
 )
@@ -84,6 +87,9 @@ def fetch(asset_id, entry, check_only):
         return len(missing)
     os.makedirs(folder, exist_ok=True)
     for f in missing:
+        if "url" not in f:
+            print(f"missing: {asset_id}/{f['name']} ({f.get('supplied', 'supplied by hand')}); copy it to {folder}")
+            continue
         dest = os.path.join(folder, f["name"])
         if not os.path.realpath(dest).startswith(os.path.realpath(folder) + os.sep):
             sys.exit(f"{asset_id}: unsafe file name {f['name']!r}")

@@ -632,9 +632,10 @@ def photo_frame(mt, col, name, loc, rot_z, size=(0.13, 0.18)):
 
 # --------------------------------------------------------------------------- framed prints
 
-def bw_print(name, asset_id, filename, src_width, left, top, height, aspect, gamma=1.0, out_h=900):
+def bw_print(name, asset_id, filename, src_width, left, top, height, aspect, gamma=1.0, out_h=900, as_is=False):
     """A black-and-white print cut from a CC0 photo: crop, greyscale, tone curve,
-    a gentle darkroom burn at the edges and a warm-neutral paper tone."""
+    a gentle darkroom burn at the edges and a warm-neutral paper tone.
+    as_is: a real photographer's print (e.g. the Ansel Adams): only cropped and on paper, its tones untouched."""
     import numpy as np
 
     img = bpy.data.images.get(name)
@@ -651,6 +652,8 @@ def bw_print(name, asset_id, filename, src_width, left, top, height, aspect, gam
         g = hero.crop(src, (left, top, left + width, top + height))
         g = hero.resize(g, int(out_h * aspect), out_h)
         g = (g @ np.array([0.2126, 0.7152, 0.0722], np.float32))[..., None]
+        if as_is:
+            return hero.packed_image(name, (0.025 + 0.93 * g * np.array([1.0, 0.99, 0.965], np.float32)).astype(np.float32))
         lo, hi = np.percentile(g, 2.0), np.percentile(g, 99.8)
         g = np.clip((g - lo) / (hi - lo), 0, 1) ** gamma
         g = g * g * (3 - 2 * g) * 0.6 + g * 0.4  # S-curve: deep blacks, open highlights

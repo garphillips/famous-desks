@@ -64,8 +64,10 @@
 		if (!moved) ontoggle();
 	}
 
+	// Hotspots with a close-up (the bookshelf, the print) open it on the first click, so there's no card to peek at.
+	const direct = $derived(!!hotspot.focus);
 	const hover = (fn: () => void) => (e: PointerEvent) => {
-		if (e.pointerType === 'mouse') fn();
+		if (e.pointerType === 'mouse' && !direct) fn();
 	};
 	const comingSoon = $derived(hotspot.kind === 'door' && !hotspot.target);
 	const leadsTo = $derived(hotspot.kind === 'door' && hotspot.target ? hotspot.targetTitle || hotspot.target : '');

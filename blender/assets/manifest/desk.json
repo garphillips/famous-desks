@@ -86,5 +86,21 @@
         "name": "stationery_supplies.bin"
       }
     ]
+  },
+  "print_orchard_portola": {
+    "kind": "artwork",
+    "title": "Orchard, Portola Valley, California (c. 1940, printed 1980), gelatin silver print",
+    "source": "National Gallery of Art, Washington (object 66721)",
+    "page": "https://www.nga.gov/artworks/66721-orchard-portola-valley-california",
+    "author": "Ansel Adams",
+    "credit": "Ansel Adams, Orchard, Portola Valley, California, c. 1940. National Gallery of Art, Washington, Gift of Virginia B. Adams. © The Ansel Adams Publishing Rights Trust",
+    "license": "all-rights-reserved",
+    "note": "Not open access at the NGA. Used without a licence as the print over Jobs' desk, shown only on the wall (no hotspot, close-up or caption); license it or replace it before the site earns money.",
+    "files": [
+      {
+        "name": "ansel.webp",
+        "supplied": "the site owner's copy (2560 x 1989)"
+      }
+    ]
   }
 }

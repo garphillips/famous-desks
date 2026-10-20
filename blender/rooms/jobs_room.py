@@ -10,7 +10,7 @@ real-world furniture sizes where the sketch is only indicative.
 - East wall: painted brick, one window in the northern half.
 - West wall: plaster, bookshelf along most of its length.
 - South wall: plaster, double door ("presumed": unknown in the photos, so kept
-  plain; the website may restrict views towards it).
+  plain; the website keeps views off it: tour.unseen_wall).
 - Floor clutter along the bookshelf, south of the desk, and between the desk and
   the north-east window. Floor lamp south-east of the desk.
 """
@@ -243,8 +243,10 @@ def build_desk(c):
                   (DESK_X - 0.01, 0.43, top), rot_z=0.08)
 
     imported.office_chair(m, furn, "chair", (DESK_X - DESK_W / 2 - 0.4, WALL - 0.7, 0), rot_z=0.5)
-    north = desk.bw_print("hero_print_north", "print_autumn_meadow", "DSC_0415.jpg", 4928,
-                          left=0.3, top=0.585, height=0.4, aspect=0.55 / 0.42, gamma=2.0)
+    # Ansel Adams, "Orchard, Portola Valley, California": the print over Jobs' desk. Unlicensed
+    # (see the asset manifest), so it only hangs on the wall: no hotspot or close-up of it.
+    north = desk.bw_print("hero_print_north", "print_orchard_portola", "ansel.webp", 2560,
+                          left=0.0, top=0.006, height=0.988, aspect=0.56 / 0.43, out_h=1400, as_is=True)
     desk.framed_print(mt, props, "print_north", (DESK_X, WALL - 0.001, 1.85), (0.78, 0.62),
                       desk._image_material("hero_print_north", north, 0.45), window=(0.56, 0.43))
     west = desk.bw_print("hero_print_west", "print_misty_pines", "misty_pines.jpg", 4096,
@@ -469,7 +471,8 @@ def build_lamp(c):
 
 def build_tour(c):
     """Viewpoints, hotspots, close-up cameras and reference cameras."""
-    lx, ly = LAMP
+    # No photos show the south wall (the door's is presumed), so the tour never faces it.
+    tour.unseen_wall((-W / 2, -D / 2), (W / 2, -D / 2))
     tour.viewpoint("office", "Office", (0.35, -1.65), 0, look_at=(DESK_X, WALL))
     # sharper (4096 px faces) so the featured books' spines read when zoomed in
     tour.viewpoint("bookshelf", "Bookshelf", (-1.25, 0.3), 1, look_at=(-W / 2, 0.3), face_size=4096)
@@ -477,21 +480,18 @@ def build_tour(c):
     tour.viewpoint("window", "Window", (2.15, -1.05), 3, look_at=(W / 2, E_WINDOW[0]))
     tour.viewpoint("entrance", "Entrance", (DOOR[0], -D / 2 + 0.6), 4, look_at=(DESK_X, WALL))
 
-    tour.hotspot("bookshelf", "Bookshelf", (-W / 2 + 0.2, BOOKSHELF[0], 1.65), icon="info",
+    tour.hotspot("bookshelf", "Bookshelf", (-W / 2 + 0.2, BOOKSHELF[0], 1.65), icon="books",
                  summary="Explore the collection of books, cameras and creative tools.",
                  focus=dict(viewpoint="bookshelf", target=(SHELF_FRONT, 0.2, 1.25), fov=42))
     tour.hotspot("display", "The display", (DISPLAY_LOC[0], DISPLAY_LOC[1], 1.3), model="display")
-    tour.hotspot("print", "The print", (DESK_X, WALL - 0.05, 2.25), icon="info")
     # in front of the desk speaker's baffle (desk top 0.74 m, speaker 0.30 m tall)
     tour.hotspot("speaker", "On the speaker", (DESK_X + 0.31, WALL - 0.34, 0.91), icon="music",
                  summary="Jobs was a lifelong Bob Dylan fan: he opened Apple's 1984 shareholders' meeting "
                          "by reciting a verse of \"The Times They Are a-Changin'\". A few songs for the room, "
                          "starting with \"One Too Many Mornings\".",
                  playlist="09XZ2JIqeA6kxT3NhsM9iG")
-    tour.hotspot("camera", "Camera", (CAMERA_LOC[0], CAMERA_LOC[1], 0.55), model="camera")
     tour.hotspot("tripod", "Tripod", (TRIPOD_LOC[0], TRIPOD_LOC[1], 1.6), model="tripod")
     tour.hotspot("east_window", "Garden window", (W / 2 - 0.1, E_WINDOW[0], 1.85))
-    tour.hotspot("floor_lamp", "Floor lamp", (lx, ly, 1.75))
     tour.hotspot("entrance", "Entrance", (DOOR[0], -D / 2 + 0.05, 1.4), kind="door", icon="door",
                  target="hallway", arrive="door")
 
@@ -501,18 +501,12 @@ def build_tour(c):
                        lens=35, fstop=5.6)
     tour.detail_camera("display", (disp[0] - 0.8, disp[1] + 0.2, 1.08), (disp[0] - 0.02, disp[1] + 0.07, 0.94),
                        lens=32, fstop=5.6)
-    cam_loc = CAMERA_LOC
-    tour.detail_camera("camera", (cam_loc[0] + 0.38, cam_loc[1] - 0.24, 0.52),
-                       (cam_loc[0] + 0.01, cam_loc[1] - 0.03, 0.355), lens=50, fstop=2.8, brighten=1.0)
-    tour.detail_camera("camera", (cam_loc[0] - 0.38, cam_loc[1] + 0.24, 0.56),
-                       (cam_loc[0], cam_loc[1], 0.35), lens=50, fstop=2.8, brighten=1.0)
     pod = TRIPOD_LOC
     tour.detail_camera("tripod", (pod[0] + 0.45, pod[1] - 0.55, 1.55), (pod[0], pod[1], 1.3),
                        lens=50, fstop=2.8, brighten=0.6)
     tour.detail_camera("tripod", (pod[0] + 1.0, pod[1] - 1.5, 0.85), (pod[0], pod[1], 0.68),
                        lens=35, brighten=0.4)
     tour.detail_camera("bookshelf", (-1.5, 0.75, 1.45), (-W / 2, 0.35, 1.25), lens=30)
-    tour.detail_camera("print", (DESK_X + 0.05, 0.85, 1.85), (DESK_X, WALL, 1.85), lens=50)
 
     # Matches "Upscaled facing south.png" (looks north at the desk) and
     # "upscaled facing north.png" (looks west at the bookshelf)

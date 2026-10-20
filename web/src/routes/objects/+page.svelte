@@ -11,7 +11,7 @@
 			.map((space) => ({
 				space,
 				objects: space.hotspots.flatMap((hotspot) => {
-					if (hotspot.kind !== 'hotspot') return [];
+					if (hotspot.kind !== 'hotspot' || hotspot.playlist) return [];
 					const viewpoint = bestViewpoint(space, hotspot);
 					return viewpoint ? [{ hotspot, viewpoint }] : [];
 				})

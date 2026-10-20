@@ -494,6 +494,10 @@
       ],
       "pano": "panos/office.webp",
       "initialYaw": -5.64,
+      "yawRange": [
+        -98.02,
+        99.95
+      ],
       "tiles": {
         "path": "panos/office",
         "faceSize": 2560,
@@ -520,6 +524,10 @@
       ],
       "pano": "panos/bookshelf.webp",
       "initialYaw": -90.0,
+      "yawRange": [
+        -141.48,
+        118.84
+      ],
       "tiles": {
         "path": "panos/bookshelf",
         "faceSize": 4096,
@@ -546,6 +554,10 @@
       ],
       "pano": "panos/desk.webp",
       "initialYaw": -31.36,
+      "yawRange": [
+        -123.05,
+        140.19
+      ],
       "tiles": {
         "path": "panos/desk",
         "faceSize": 2560,
@@ -572,6 +584,10 @@
       ],
       "pano": "panos/window.webp",
       "initialYaw": 26.72,
+      "yawRange": [
+        -101.62,
+        136.33
+      ],
       "tiles": {
         "path": "panos/window",
         "faceSize": 2560,
@@ -598,6 +614,10 @@
       ],
       "pano": "panos/entrance.webp",
       "initialYaw": 17.33,
+      "yawRange": [
+        -106.54,
+        97.8
+      ],
       "tiles": {
         "path": "panos/entrance",
         "faceSize": 2560,
@@ -620,7 +640,7 @@
       "slug": "bookshelf",
       "title": "Bookshelf",
       "kind": "hotspot",
-      "icon": "info",
+      "icon": "books",
       "summary": "Explore the collection of books, cameras and creative tools.",
       "position": [
         -3.0,
@@ -920,50 +940,6 @@
       }
     },
     {
-      "slug": "print",
-      "title": "The print",
-      "kind": "hotspot",
-      "icon": "info",
-      "summary": "",
-      "position": [
-        -0.025,
-        2.1,
-        2.25
-      ],
-      "views": {
-        "office": {
-          "yaw": -5.71,
-          "pitch": 9.79,
-          "distance": 3.824
-        },
-        "bookshelf": {
-          "yaw": 34.24,
-          "pitch": 16.62,
-          "distance": 2.272
-        },
-        "desk": {
-          "yaw": -32.17,
-          "pitch": 19.54,
-          "distance": 1.943
-        },
-        "window": {
-          "yaw": -34.62,
-          "pitch": 9.64,
-          "distance": 3.883
-        },
-        "entrance": {
-          "yaw": 17.55,
-          "pitch": 9.64,
-          "distance": 3.883
-        }
-      },
-      "detail": {
-        "images": [
-          "details/print/closeup-1.webp"
-        ]
-      }
-    },
-    {
       "slug": "speaker",
       "title": "On the speaker",
       "kind": "hotspot",
@@ -997,52 +973,6 @@
         }
       },
       "playlist": "09XZ2JIqeA6kxT3NhsM9iG"
-    },
-    {
-      "slug": "camera",
-      "title": "Camera",
-      "kind": "hotspot",
-      "icon": "eye",
-      "summary": "",
-      "position": [
-        -0.178,
-        -0.998,
-        0.55
-      ],
-      "views": {
-        "office": {
-          "yaw": -39.03,
-          "pitch": -51.37,
-          "distance": 1.344
-        },
-        "bookshelf": {
-          "yaw": 140.46,
-          "pitch": -31.95,
-          "distance": 1.984
-        },
-        "desk": {
-          "yaw": -143.91,
-          "pitch": -28.73,
-          "distance": 2.185
-        },
-        "window": {
-          "yaw": -88.73,
-          "pitch": -24.27,
-          "distance": 2.555
-        },
-        "entrance": {
-          "yaw": 61.14,
-          "pitch": -42.57,
-          "distance": 1.552
-        }
-      },
-      "detail": {
-        "images": [
-          "details/camera/closeup-1.webp",
-          "details/camera/closeup-2.webp"
-        ],
-        "model": "details/camera/model.glb"
-      }
     },
     {
       "slug": "tripod",
@@ -1121,45 +1051,6 @@
           "yaw": 58.86,
           "pitch": 2.86,
           "distance": 5.006
-        }
-      }
-    },
-    {
-      "slug": "floor_lamp",
-      "title": "Floor lamp",
-      "kind": "hotspot",
-      "icon": "eye",
-      "summary": "",
-      "position": [
-        1.468,
-        -0.376,
-        1.75
-      ],
-      "views": {
-        "office": {
-          "yaw": 41.28,
-          "pitch": 5.06,
-          "distance": 1.702
-        },
-        "bookshelf": {
-          "yaw": 103.97,
-          "pitch": 3.07,
-          "distance": 2.805
-        },
-        "desk": {
-          "yaw": 150.78,
-          "pitch": 8.04,
-          "distance": 1.072
-        },
-        "window": {
-          "yaw": -45.34,
-          "pitch": 8.89,
-          "distance": 0.97
-        },
-        "entrance": {
-          "yaw": 66.09,
-          "pitch": 2.96,
-          "distance": 2.9
         }
       }
     },

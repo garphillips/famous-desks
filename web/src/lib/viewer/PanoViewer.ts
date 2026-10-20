@@ -36,6 +36,9 @@ export interface PanoSource {
 const MIN_FOV = 30;
 const MAX_FOV = 90;
 const MAX_PITCH = 85;
+/** A yaw range keeps the frame's corners off the hidden wall up to this far above and below the horizon. */
+const WALL_BAND = 50;
+const RANGE_MARGIN = 2;
 const SMALL_SCREEN =
 	typeof matchMedia !== 'undefined' && matchMedia('(pointer: coarse), (max-width: 760px)').matches;
 /** GPU memory for panorama textures: a 512 px tile is ~1.4 MB with mipmaps, a 4096 equirect ~45 MB. */
@@ -384,7 +387,8 @@ export class PanoViewer {
 		this.inertia = null;
 		this.pinch = null;
 		const background = this.preload(src);
-		const to = { yaw, pitch, fov: THREE.MathUtils.clamp(fov ?? this.fov, MIN_FOV, MAX_FOV) };
+		const toFov = THREE.MathUtils.clamp(fov ?? this.fov, MIN_FOV, MAX_FOV);
+		const to = { yaw: this.clampYaw(yaw, pitch, toFov), pitch, fov: toFov };
 		try {
 			// A prefetched panorama is ready at once: turn, step and zoom as one motion.
 			// Otherwise turn towards it while it loads, then step.
@@ -392,7 +396,7 @@ export class PanoViewer {
 			if (token !== this.token) return false;
 			if (!bg && !reduced) {
 				const from = { yaw: this.yaw, pitch: this.pitch };
-				const turn = wrap(yaw - from.yaw);
+				const turn = this.turn(from.yaw, to.yaw);
 				const ms = Math.min(TURN_MAX_MS, (Math.abs(turn) + Math.abs(from.pitch - pitch)) * TURN_MS_PER_DEGREE);
 				await this.animate(ms, (t) => {
 					const e = easeInOut(t);
@@ -411,7 +415,7 @@ export class PanoViewer {
 				return true;
 			}
 			const from = { yaw: this.yaw, pitch: this.pitch, fov: this.fov };
-			const turn = wrap(to.yaw - from.yaw);
+			const turn = this.turn(from.yaw, to.yaw);
 			const turnMs = Math.min(TURN_MAX_MS, (Math.abs(turn) + Math.abs(from.pitch - to.pitch)) * TURN_MS_PER_DEGREE);
 			const zoomMs = zoomDuration(from.fov, to.fov);
 			const ms = turnMs + Math.max(STEP_MS, zoomMs);
@@ -509,8 +513,8 @@ export class PanoViewer {
 		if (this.busy) return false;
 		this.inertia = null;
 		const from = { yaw: this.yaw, pitch: this.pitch, fov: this.fov };
-		const turn = wrap(yaw - from.yaw);
 		const to = THREE.MathUtils.clamp(fov, MIN_FOV, MAX_FOV);
+		const turn = this.turn(from.yaw, this.clampYaw(yaw, pitch, to));
 		const token = this.token;
 		ms ??= Math.max(zoomDuration(from.fov, to), Math.min(1400, 500 + (Math.abs(turn) + Math.abs(pitch - from.pitch)) * 4));
 		await this.animate(prefersReducedMotion() ? 0 : ms, (t) => {
@@ -566,8 +570,64 @@ export class PanoViewer {
 		};
 	}
 
+	/**
+	 * The directions the view may face: [from, to] in degrees, clockwise (e.g. to keep a
+	 * wall there are no photos of out of the frame). Dragging, zooming and moves all stay inside.
+	 */
+	yawRange: [number, number] | null = null;
+
+	/** How far the frame reaches either side of where it faces (degrees), over the band the wall shows in. */
+	private reach(pitch: number, fov: number) {
+		const tv = Math.tan(THREE.MathUtils.degToRad(fov) / 2);
+		const a = tv * this.camera.aspect;
+		const p = THREE.MathUtils.degToRad(pitch);
+		const band = THREE.MathUtils.degToRad(WALL_BAND);
+		// along the frame's side edge (b from -tv to tv): sideways reach and height above the horizon
+		const side = (b: number) => Math.atan2(a, Math.cos(p) - b * Math.sin(p));
+		const elevation = (b: number) => Math.atan2(Math.sin(p) + b * Math.cos(p), Math.hypot(a, Math.cos(p) - b * Math.sin(p)));
+		// the part of the edge inside the band (elevation rises with b), found by halving
+		const solve = (target: number) => {
+			let lo = -tv;
+			let hi = tv;
+			if (elevation(lo) >= target) return lo;
+			if (elevation(hi) <= target) return hi;
+			for (let i = 0; i < 24; i++) {
+				const mid = (lo + hi) / 2;
+				if (elevation(mid) < target) lo = mid;
+				else hi = mid;
+			}
+			return (lo + hi) / 2;
+		};
+		const ends = [solve(-band), solve(band)].filter((b) => Math.cos(p) - b * Math.sin(p) > 0);
+		const reach = ends.length ? Math.max(...ends.map(side)) : Math.PI / 2;
+		return THREE.MathUtils.radToDeg(Math.min(reach, Math.PI / 2));
+	}
+
+	/** `yaw` moved just far enough that the frame stays inside the yaw range. */
+	private clampYaw(yaw: number, pitch = this.pitch, fov = this.fov) {
+		if (!this.yawRange) return wrap(yaw);
+		const [from, to] = this.yawRange;
+		const r = this.reach(pitch, fov) + RANGE_MARGIN;
+		const lo = from + r;
+		const hi = to - r;
+		if (lo > hi) return wrap((from + to) / 2);
+		const y = from + ((((yaw - from) % 360) + 360) % 360);
+		if (y < lo) return wrap(lo);
+		if (y <= hi) return wrap(y);
+		// past the far edge: back to whichever edge is nearer across the hidden side
+		return wrap(y - hi < lo + 360 - y ? hi : lo);
+	}
+
+	/** The turn from one yaw to another: the short way, unless that would sweep across the hidden side. */
+	private turn(from: number, to: number) {
+		if (!this.yawRange) return wrap(to - from);
+		const start = this.yawRange[0];
+		const inside = (y: number) => start + ((((y - start) % 360) + 360) % 360);
+		return inside(to) - inside(from);
+	}
+
 	lookAt(yaw: number, pitch = 0) {
-		this.yaw = yaw;
+		this.yaw = this.clampYaw(yaw, pitch);
 		this.pitch = pitch;
 		this.inertia = null;
 		this.invalidate();
@@ -870,6 +930,14 @@ export class PanoViewer {
 		this.dirty = false;
 		this.pitch = THREE.MathUtils.clamp(this.pitch, -MAX_PITCH, MAX_PITCH);
 		this.yaw = wrap(this.yaw);
+		// moves aim inside the yaw range themselves; everything else (drag, inertia, keys, zoom) stops at its edge
+		if (!this.animation) {
+			const yaw = this.clampYaw(this.yaw);
+			if (Math.abs(wrap(yaw - this.yaw)) > 1e-6) {
+				this.yaw = yaw;
+				if (this.inertia) this.inertia.yaw = 0;
+			}
+		}
 		this.camera.fov = this.fov;
 		this.camera.updateProjectionMatrix();
 		this.camera.lookAt(direction(this.yaw, this.pitch));

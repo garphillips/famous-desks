@@ -14,6 +14,7 @@
 	import DetailPanel from './DetailPanel.svelte';
 	import BookPanel from './BookPanel.svelte';
 	import MusicPlayer from './MusicPlayer.svelte';
+	import SpeakerRipples from './SpeakerRipples.svelte';
 
 	let { space, viewpointSlug }: { space: Space; viewpointSlug: string } = $props();
 
@@ -34,13 +35,13 @@
 	let pinned: string | null = $state(null);
 	let detail: Hotspot | null = $state(null);
 	let detailImage = $state('');
-	// The speaker's playlist: open as a panel, or docked in the corner while it plays.
-	let music: Hotspot | null = $state.raw(null);
-	let musicOpen = $state(false);
+	// The room's playlist: its player sits in the corner, and ripples spread from the speaker while it plays.
+	const music = $derived(space.hotspots.find((h) => h.playlist));
+	let playing = $state(false);
 	let showHint = $state(true);
 	const thumbnails: Record<string, string> = $state({});
 
-	// Focus: zoomed in on a hotspot whose items (books) can be picked.
+	// Focus: zoomed in on a hotspot (the print), or on one whose items (books) can be picked.
 	let focus: Hotspot | null = $state.raw(null);
 	/** True once the zoom-in has landed (so zooming out can leave). */
 	let focusReady = false;
@@ -56,7 +57,7 @@
 	const viewpoint = $derived(
 		space.viewpoints.find((v) => v.slug === viewpointSlug) ?? space.viewpoints[0]
 	);
-	const here = $derived(space.hotspots.filter((h) => h.views[viewpoint.slug]));
+	const here = $derived(space.hotspots.filter((h) => h.views[viewpoint.slug] && !h.playlist));
 	const openSlug = $derived(pinned ?? peek);
 
 	function updateView() {
@@ -139,6 +140,7 @@
 		const linked = page.url.searchParams.get('h');
 		const target = linked ? space.hotspots.find((h) => h.slug === linked && h.views[v.slug]) : null;
 		viewer.settle();
+		viewer.yawRange = v.yawRange ?? null;
 		const from = space.viewpoints.find((x) => panoUrl(x) === viewer.url);
 		if (from === v && !target) {
 			loading = moving = false;
@@ -197,8 +199,7 @@
 	const focusAt = (slug: string) => space.hotspots.find((h) => h.focus?.viewpoint === slug && h.items?.length);
 
 	/** Scene bar and minimap: a viewpoint with a picking view (the bookshelf) opens straight into it. */
-	function goToViewpoint(slug: string) {
-		const target = focusAt(slug);
+	function goToViewpoint(slug: string, target = focusAt(slug)) {
 		if (slug === viewpoint.slug) {
 			if (target && !focus && !moving && !loading) startFocus(target);
 			return;
@@ -212,20 +213,10 @@
 			if (h.target) goto(h.arrive ? `/${h.target}/${h.arrive}` : `/${h.target}`);
 			return;
 		}
-		if (h.playlist) {
-			pinned = peek = null;
-			showHint = false;
-			music = h;
-			musicOpen = true;
-			return;
-		}
-		if (h.focus && h.items?.length) {
+		if (h.focus) {
 			pinned = peek = null;
 			if (h.focus.viewpoint === viewpoint.slug) startFocus(h);
-			else {
-				pendingFocus = h;
-				goToViewpoint(h.focus.viewpoint);
-			}
+			else goToViewpoint(h.focus.viewpoint, h);
 			return;
 		}
 		const { yaw, pitch } = h.views[viewpoint.slug];
@@ -259,8 +250,10 @@
 			return;
 		}
 		if (focus !== h) return;
-		shelf = new ShelfItems(viewer, h.items ?? [], viewpoint, (path) => spaceUrl(space.slug, path));
-		viewer.addOverlay(shelf);
+		if (h.items?.length) {
+			shelf = new ShelfItems(viewer, h.items, viewpoint, (path) => spaceUrl(space.slug, path));
+			viewer.addOverlay(shelf);
+		}
 		focusReady = true;
 		updateView();
 	}
@@ -368,16 +361,30 @@
 				<button class="back" onclick={() => leaveFocus()} aria-label="Back to the room">
 					<Icon name="chevron-left" size={16} />
 				</button>
-				<span class="wide">{focus.title}: pick one of the {focus.items?.length ?? 0} highlighted books</span>
-				<span class="narrow">Tap a highlighted book</span>
+				{#if focus.items?.length}
+					<span class="wide">{focus.title}: pick one of the {focus.items.length} highlighted books</span>
+					<span class="narrow">Tap a highlighted book</span>
+				{:else}
+					<span>{focus.title}</span>
+				{/if}
 			</div>
-			<div class="sr-only" role="group" aria-label="Books on the {focus.title.toLowerCase()}">
-				{#each focus.items ?? [] as item (item.slug)}
-					<button onclick={() => openBook(item)}>{item.title} by {item.author}</button>
-				{/each}
-			</div>
+			{#if focus.items?.length}
+				<div class="sr-only" role="group" aria-label="Books on the {focus.title.toLowerCase()}">
+					{#each focus.items as item (item.slug)}
+						<button onclick={() => openBook(item)}>{item.title} by {item.author}</button>
+					{/each}
+				</div>
+			{/if}
 		{/if}
 	{/if}
+
+	<SpeakerRipples
+		source={music?.views[viewpoint.slug] ?? null}
+		{playing}
+		hidden={loading || moving || !!focus}
+		project={(y, p) => viewer?.project(y, p)}
+		focal={() => canvas.clientWidth / 2 / Math.tan((hfov * Math.PI) / 360)}
+	/>
 
 	<div class="markers" class:hidden={loading || moving || !!focus}>
 		{#each markers as m (m.hotspot.slug)}
@@ -392,7 +399,7 @@
 					onunpeek={() => (peek = null)}
 					ongrab={(e) => viewer?.grab(e)}
 					ontoggle={() => {
-						if (pinned === m.hotspot.slug) openDetail(m.hotspot);
+						if (pinned === m.hotspot.slug || m.hotspot.focus) openDetail(m.hotspot);
 						else pinned = m.hotspot.slug;
 					}}
 					onopen={() => openDetail(m.hotspot)}
@@ -422,22 +429,13 @@
 		</div>
 		<div class="right">
 			{#if showHint}<HintPill />{/if}
+			{#if music}
+				<div class="music-slot">
+					<MusicPlayer hotspot={music} spaceTitle={space.title} onplaying={(p) => (playing = p)} />
+				</div>
+			{/if}
 		</div>
 	</div>
-
-	{#if music}
-		<MusicPlayer
-			hotspot={music}
-			open={musicOpen}
-			spaceTitle={space.title}
-			onopen={() => (musicOpen = true)}
-			onclose={(playing) => {
-				musicOpen = false;
-				if (!playing) music = null;
-				canvas.focus();
-			}}
-		/>
-	{/if}
 
 	{#if openItem && focus}
 		<BookPanel
@@ -669,6 +667,10 @@
 	}
 	.right {
 		justify-self: end;
+		display: flex;
+		flex-direction: column;
+		align-items: flex-end;
+		gap: 12px;
 	}
 
 	/* Stacked: minimap and hint on one row, scene bar full width below. */
@@ -694,6 +696,28 @@
 			justify-self: center;
 			min-width: 0;
 			max-width: 100%;
+		}
+	}
+	/* Phone: the music gets a row of its own, above the scene bar. */
+	@media (max-width: 760px) {
+		.bottom {
+			grid-template-areas:
+				'left right'
+				'music music'
+				'center center';
+		}
+		.right {
+			display: contents;
+		}
+		.right > :global(.hint) {
+			grid-area: right;
+			justify-self: end;
+		}
+		.music-slot {
+			grid-area: music;
+		}
+		.music-slot :global(.music) {
+			width: 100%;
 		}
 	}
 </style>

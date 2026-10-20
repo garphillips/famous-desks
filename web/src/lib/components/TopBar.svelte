@@ -28,7 +28,7 @@
 		const sync = () => (fullscreen = !!document.fullscreenElement);
 		document.addEventListener('fullscreenchange', sync);
 		loadSpaces()
-			.then((s) => (spaces = s))
+			.then((s) => (spaces = s.filter((x) => !site.hiddenSpaces.includes(x.slug))))
 			.catch(() => (spacesError = true));
 		return () => document.removeEventListener('fullscreenchange', sync);
 	});
@@ -151,6 +151,7 @@
 								</li>
 							{/each}
 						</ul>
+						<p class="soon">More coming soon</p>
 					{:else}
 						<p class="empty">{spacesError ? "Couldn't load the list of spaces." : 'Loading…'}</p>
 					{/if}
@@ -158,13 +159,15 @@
 			{/if}
 		</div>
 
-		<nav aria-label="Main">
-			{#each links as link (link.id)}
-				<a href={link.href} class:active={link.id === active} aria-current={link.id === active ? 'page' : undefined}
-					>{link.label}</a
-				>
-			{/each}
-		</nav>
+		{#if site.showPages}
+			<nav aria-label="Main">
+				{#each links as link (link.id)}
+					<a href={link.href} class:active={link.id === active} aria-current={link.id === active ? 'page' : undefined}
+						>{link.label}</a
+					>
+				{/each}
+			</nav>
+		{/if}
 		<button class="fullscreen" onclick={toggleFullscreen} aria-label={fullscreen ? 'Exit full screen' : 'Full screen'}>
 			<Icon name={fullscreen ? 'collapse' : 'expand'} size={17} />
 		</button>
@@ -387,6 +390,14 @@
 		text-transform: uppercase;
 		white-space: nowrap;
 		color: var(--accent);
+	}
+	.soon {
+		margin: 6px 12px 6px 42px;
+		font-size: 10.5px;
+		font-weight: 500;
+		letter-spacing: 0.24em;
+		text-transform: uppercase;
+		color: var(--ink-faint);
 	}
 	.empty {
 		margin: 4px 12px 8px;

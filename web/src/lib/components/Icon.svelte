@@ -12,7 +12,8 @@
 		| 'collapse'
 		| 'close'
 		| 'mouse'
-		| 'music';
+		| 'music'
+		| 'books';
 </script>
 
 <script lang="ts">
@@ -61,5 +62,10 @@
 		<path d="M9 17.5V5.5l10-2v12" />
 		<circle cx="6.5" cy="17.5" r="2.5" />
 		<circle cx="16.5" cy="15.5" r="2.5" />
+	{:else if name === 'books'}
+		<rect x="3.5" y="15.5" width="17" height="4.5" rx="1" />
+		<rect x="5.5" y="10.5" width="14" height="4.5" rx="1" />
+		<rect x="4.5" y="5.5" width="12" height="4.5" rx="1" transform="rotate(-6 10.5 7.75)" />
+		<path d="M7.5 15.5v4.5M16 10.5v4.5" />
 	{/if}
 </svg>

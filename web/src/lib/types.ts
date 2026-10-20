@@ -14,6 +14,9 @@ export interface Viewpoint {
 	pano: string;
 	/** Degrees, 0 = north, clockwise. */
 	initialYaw: number;
+	/** The directions the view may face, clockwise from the first to the second (degrees, 0 = north);
+	 *  everything else (a wall there are no photos of) stays out of the frame. */
+	yawRange?: [number, number];
 	/** Cube-face tile pyramid of the same panorama, when it was rendered as cube faces. */
 	tiles?: PanoTiles;
 }
@@ -110,7 +113,7 @@ export interface Hotspot {
 	slug: string;
 	title: string;
 	kind: 'hotspot' | 'door';
-	icon: 'eye' | 'info' | 'door' | 'music';
+	icon: 'eye' | 'info' | 'door' | 'music' | 'books';
 	summary: string;
 	position: [number, number, number];
 	/** Only viewpoints the hotspot is visible from. */

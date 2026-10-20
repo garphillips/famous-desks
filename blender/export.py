@@ -55,6 +55,17 @@ def yaw_pitch(origin, target):
     return round(yaw, 2), round(pitch, 2), round(d.length, 3)
 
 
+def yaw_range(origin, a, b):
+    """The directions (degrees, clockwise from `from` to `to`) that look past the wall a-b."""
+    ya = yaw_pitch(origin, (a[0], a[1], origin.z))[0]
+    yb = yaw_pitch(origin, (b[0], b[1], origin.z))[0]
+    d = (yb - ya + 180) % 360 - 180  # the wall's arc, the short way from a to b
+    start, end = (ya + d, ya + 360) if d > 0 else (ya, ya + 360 + d)
+    if start > 180:
+        start, end = start - 360, end - 360
+    return [round(start, 2), round(end, 2)]
+
+
 def visible(scene, depsgraph, origin, target):
     d = Vector(target) - Vector(origin)
     hit, location, *_ = scene.ray_cast(depsgraph, Vector(origin), d.normalized(), distance=d.length)
@@ -329,6 +340,9 @@ def main():
         if "look_at" in vp:
             tx, ty = vp["look_at"]
             entry["initialYaw"] = yaw_pitch(vp.location, (tx, ty, vp.location.z))[0]
+        if "unseen_wall" in scene:
+            ax, ay, bx, by = scene["unseen_wall"]
+            entry["yawRange"] = yaw_range(vp.location, (ax, ay), (bx, by))
         data["viewpoints"].append(entry)
 
     for hs in hotspots:
