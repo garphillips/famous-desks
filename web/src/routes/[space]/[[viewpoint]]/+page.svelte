@@ -5,7 +5,7 @@
 </script>
 
 <svelte:head>
-	<title>{data.space.title}</title>
+	<title>{data.space.title} · Famous Desks</title>
 </svelte:head>
 
 <Tour space={data.space} viewpointSlug={data.viewpoint} />

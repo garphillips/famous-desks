@@ -129,17 +129,27 @@ def _image_material(name, image, rough=0.5):
     return mat
 
 
-def _snapshot(name="hero_snapshot_image"):
-    """A faded colour snapshot (a crop of a CC0 photo) for the small desk frame."""
+# Crops of the CC0 photos for the snapshots in small frames: (asset, file, width, crop box).
+SNAPSHOTS = {
+    "snapshot": ("print_autumn_meadow", "DSC_0415.jpg", 1200, (0.55, 0.45, 0.8, 0.95)),
+    "snapshot_2": ("print_autumn_meadow", "DSC_0415.jpg", 1200, (0.05, 0.35, 0.35, 0.85)),
+    "snapshot_3": ("print_misty_pines", "misty_pines.jpg", 1200, (0.2, 0.15, 0.45, 0.6)),
+    "snapshot_4": ("print_misty_pines", "misty_pines.jpg", 1200, (0.6, 0.3, 0.85, 0.75)),
+}
+
+
+def _snapshot(name="hero_snapshot_image", key="snapshot"):
+    """A faded colour snapshot (a crop of a CC0 photo) for a small frame."""
     import numpy as np
 
     img = bpy.data.images.get(name)
     if img:
         return img
-    src = hero.photo_pixels("print_autumn_meadow", "DSC_0415.jpg", 1200)
+    asset, filename, width, crop = SNAPSHOTS[key]
+    src = hero.photo_pixels(asset, filename, width)
     if src is None:
         src = np.full((64, 48, 3), 0.5, np.float32)
-    rgb = hero.resize(hero.crop(src, (0.55, 0.45, 0.8, 0.95)), 240, 330)
+    rgb = hero.resize(hero.crop(src, crop), 240, 330)
     rgb = 0.08 + 0.8 * rgb * np.array([1.0, 0.93, 0.8], np.float32)
     return hero.packed_image(name, rgb.astype(np.float32))
 
@@ -153,7 +163,8 @@ def materials(m):
     h = hero.materials()
     return {
         **h,
-        "oak": lib.wood("hero_desk_oak", (0.60, 0.29, 0.09), (0.28, 0.11, 0.03), 0.3, 70.0, coat=0.45),
+        # a little darker than natural oak, as in the photo from his desk
+        "oak": lib.wood("hero_desk_oak", (0.50, 0.24, 0.075), (0.22, 0.085, 0.024), 0.3, 70.0, coat=0.45),
         "paper": m["paper"],
         "cardboard": m["cardboard"],
         "plastic_white": m["plastic_white"],
@@ -186,7 +197,11 @@ def materials(m):
                                        stretch=(1, 1, 20)),
         "mount": hero._with_bump(_p("hero_mount_board", (0.87, 0.86, 0.82), 0.9), 1200, 0.1),
         "glass": lib._cached("hero_frame_glass", _frame_glass),
-        "snapshot": _image_material("hero_snapshot", _snapshot(), rough=0.25),
+        **{key: _image_material(f"hero_{key}", _snapshot(f"hero_{key}_image", key), rough=0.25)
+           for key in SNAPSHOTS},
+        # deep brown, like the chest of drawers in the photo from his desk
+        "walnut": lib.wood("hero_walnut", (0.17, 0.085, 0.04), (0.06, 0.027, 0.013), 0.35, 60.0, coat=0.5),
+        "frame_black": _p("hero_frame_black", (0.02, 0.02, 0.02), 0.45),
     }
 
 
@@ -615,18 +630,61 @@ def pile(mt, col, name, loc, recipe, rng, rot_z=0.0):
     return b.build(name, col, loc, rot_z)
 
 
-def photo_frame(mt, col, name, loc, rot_z, size=(0.13, 0.18)):
-    """Small standing frame in oak, leaning back on a strut, with a colour snapshot."""
+def photo_frame(mt, col, name, loc, rot_z, size=(0.13, 0.18), wood="oak", photo="snapshot", lean=0.22):
+    """Small standing frame (oak by default), leaning back on a strut, with a colour snapshot."""
     w, h = size
     b = HeroBuilder()
-    lean = 0.22
     b.push(Matrix.Translation((0, 0, 0.0)) @ Matrix.Rotation(-lean, 4, "X") @ Matrix.Translation((0, 0, h / 2)))
-    b.ring((w, h), 0.016, -0.006, 0.006, mt["oak"], bevel=0.0015)
-    verts = b.sheet((w - 0.03, h - 0.03), (0, -0.001, 0), mt["snapshot"], rot=(math.pi / 2, 0, 0), nx=1, ny=1)
+    b.ring((w, h), 0.016, -0.006, 0.006, mt[wood], bevel=0.0015)
+    verts = b.sheet((w - 0.03, h - 0.03), (0, -0.001, 0), mt[photo], rot=(math.pi / 2, 0, 0), nx=1, ny=1)
     b.planar_uvs(verts, b.matrix.inverted(), (-(w - 0.03) / 2, -(h - 0.03) / 2), (w - 0.03, h - 0.03))
     b.box((w - 0.02, 0.003, h - 0.02), (0, 0.0045, 0), mt["cardboard"])
     b.pop()
     b.rod((0, 0.03, 0.12), (0, 0.075, 0.002), 0.004, mt["cardboard"], segments=6)
+    return b.build(name, col, loc, rot_z)
+
+
+def chest_of_drawers(mt, col, name, loc, rot_z=0.0, size=(1.42, 0.46, 0.78)):
+    """Mid-century walnut chest: a low carcass of six drawers (two across, three high) with
+    recessed finger pulls, on four tapered, slightly splayed legs. loc is the floor centre;
+    the drawers face -Y."""
+    w, d, h = size
+    legs, top_t, gap = 0.2, 0.022, 0.006
+    walnut = mt["walnut"]
+    b = HeroBuilder()
+    body = h - legs - top_t
+    b.box((w, d, body), (0, 0, legs + body / 2), walnut, bevel=0.003, segments=2)
+    b.box((w + 0.012, d + 0.012, top_t), (0, 0, h - top_t / 2), walnut, bevel=0.006, segments=3)
+    # drawer fronts, a hair proud of the carcass, each with a dark finger slot under its top edge
+    fw, fh = (w - 0.04 - gap) / 2, (body - 0.04 - 2 * gap) / 3
+    front = -d / 2 - 0.009
+    for i in range(2):
+        for j in range(3):
+            x = -w / 2 + 0.02 + fw / 2 + i * (fw + gap)
+            z = legs + 0.02 + fh / 2 + j * (fh + gap)
+            b.box((fw, 0.018, fh), (x, front, z), walnut, bevel=0.003, segments=2)
+            b.box((fw * 0.4, 0.004, 0.014), (x, front - 0.0085, z + fh / 2 - 0.03), mt["metal_dark"], bevel=0.002)
+    # tapered legs, splayed a little outwards
+    for sx in (-1, 1):
+        for sy in (-1, 1):
+            top = (sx * (w / 2 - 0.07), sy * (d / 2 - 0.06), legs + 0.01)
+            foot = (sx * (w / 2 - 0.04), sy * (d / 2 - 0.035), 0.0)
+            b.rod(top, foot, 0.019, walnut, segments=16, radius2=0.011)
+    return b.build(name, col, loc, rot_z)
+
+
+def frame_stack(mt, col, name, loc, rot_z, sizes):
+    """Frames lying flat in a loose pile, face up: (width, depth) each, bottom first."""
+    b = HeroBuilder()
+    z = 0.0
+    woods = ("frame_black", "oak", "walnut")
+    for i, (w, d) in enumerate(sizes):
+        t = 0.018
+        b.push(Matrix.Translation((0.01 * (i % 2 * 2 - 1), 0.008 * i, z + t / 2)) @ Matrix.Rotation(0.12 * (i - 1), 4, "Z"))
+        b.box((w, d, t), (0, 0, 0), mt[woods[i % 3]], bevel=0.002, segments=1)
+        b.box((w - 0.03, d - 0.03, 0.002), (0, 0, t / 2), mt[("snapshot_2", "snapshot_3", "snapshot_4")[i % 3]])
+        b.pop()
+        z += t + 0.001
     return b.build(name, col, loc, rot_z)
 
 

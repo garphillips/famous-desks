@@ -44,9 +44,20 @@ def span_y(py0, py1):
 
 
 NW_WINDOW = span_x(232, 630)
-NE_WINDOW = span_x(1280, 1678)
-E_WINDOW = span_y(112, 510)
-DOOR = span_x(368, 766)
+# The corner windows (sizes from the sketch) run to within 30 cm of the north-east corner,
+# leaving a narrow pillar of brick between them, as in Diana Walker's photo.
+CORNER_PIER = 0.30
+_ne_w, _e_w = span_x(1280, 1678)[1], span_y(112, 510)[1]
+NE_WINDOW = (W / 2 - CORNER_PIER - _ne_w / 2, _ne_w)
+E_WINDOW = (D / 2 - CORNER_PIER - _e_w / 2, _e_w)
+# Steel windows: sill and head heights. The north-west window has a row of panes fewer than the
+# corner ones (3 rows, not 4), so it's shorter, its head level with theirs.
+SILL, HEAD = 0.55, 2.3
+NW_SILL = 0.9125
+DOOR = span_x(1110, 1508)  # the updated plan: towards the south-east corner
+# mid-century chest of drawers against the east wall, south end (updated plan)
+CHEST = span_y(752, 1150)
+CHEST_DEPTH = 0.46
 BOOKSHELF = span_y(0, 975)
 DESK_X = span_x(710, 1072)[0]
 
@@ -63,13 +74,13 @@ SPEC = {
     "walls": {
         "N": {"finish": "brick_x", "openings": [
             {"kind": "window", "style": "steel", "center": NW_WINDOW[0], "width": NW_WINDOW[1],
-             "sill": 0.85, "head": 2.3, "cols": 4, "rows": 4},
+             "sill": NW_SILL, "head": HEAD, "cols": 4, "rows": 3, "tiled_sill": True},
             {"kind": "window", "style": "steel", "center": NE_WINDOW[0], "width": NE_WINDOW[1],
-             "sill": 0.85, "head": 2.3, "cols": 4, "rows": 4},
+             "sill": SILL, "head": HEAD, "cols": 4, "rows": 4},
         ]},
         "E": {"finish": "brick_y", "openings": [
             {"kind": "window", "style": "steel", "center": E_WINDOW[0], "width": E_WINDOW[1],
-             "sill": 0.85, "head": 2.3, "cols": 4, "rows": 4},
+             "sill": SILL, "head": HEAD, "cols": 4, "rows": 4},
         ]},
         "S": {"finish": "plaster", "openings": [
             {"kind": "door", "center": DOOR[0], "width": DOOR[1], "sill": 0.0, "head": 2.1,
@@ -109,6 +120,7 @@ def build():
     build_desk(c)
     build_clutter(c)
     build_lamp(c)
+    build_chest(c)
     build_tour(c)
 
 
@@ -210,7 +222,8 @@ def build_desk(c):
     rng = random.Random(7)
     top = 0.74
     desk.desk(mt, furn, "desk", (DESK_X, WALL - DESK_LEN / 2, 0), (DESK_W, DESK_LEN, top))
-    hero.display(props, "display", DISPLAY_LOC, rot_z=-0.35, width=0.66, height=0.46)
+    # a 16:10 screen, like the Cinema Display in the photo from his desk
+    hero.display(props, "display", DISPLAY_LOC, rot_z=-0.35, width=0.66, height=0.43)
     desk.speaker(mt, props, "speaker", (DESK_X + 0.31, WALL - 0.21, top), rot_z=-0.12)
     desk.desk_lamp(mt, props, "desk_lamp", (DESK_X + 0.31, WALL - 0.21, top + 0.303), rot_z=-0.12)
     desk.tower(mt, props, "mac_pro", (DESK_X - 0.2, WALL - 0.45, 0), rot_z=math.pi / 2)
@@ -251,6 +264,11 @@ def build_desk(c):
                       desk._image_material("hero_print_north", north, 0.45), window=(0.56, 0.43))
     west = desk.bw_print("hero_print_west", "print_misty_pines", "misty_pines.jpg", 4096,
                          left=0.43, top=0.1, height=0.55, aspect=0.39 / 0.57, gamma=1.25)
+    # east wall, between the window and the chest of drawers (photo looking east from the desk)
+    east = desk.bw_print("hero_print_east", "print_autumn_meadow", "DSC_0415.jpg", 4928,
+                         left=0.62, top=0.3, height=0.6, aspect=0.3 / 0.4, gamma=1.4)
+    desk.framed_print(mt, props, "print_east", (W / 2 - 0.001, -0.2, 1.6), (0.42, 0.54),
+                      desk._image_material("hero_print_east", east, 0.45), window=(0.3, 0.4), rot_z=-math.pi / 2)
     desk.framed_print(mt, props, "print_west", (-W / 2 + 0.001, -1.75, 1.45), (0.6, 0.8),
                       desk._image_material("hero_print_west", west, 0.45), window=(0.4, 0.58),
                       rot_z=math.pi / 2)  # faces east
@@ -465,6 +483,30 @@ def _loose_paper(m, col, rng):
     b.build("loose_paper", col, bevel=0.0)
 
 
+def build_chest(c):
+    """The mid-century chest of drawers in the south-east corner, drawers facing west, with a
+    pile of family photo frames on top (as in the photo looking east from the desk)."""
+    mt = desk.materials(c.m)
+    x = W / 2 - CHEST_DEPTH / 2 - 0.015
+    desk.chest_of_drawers(mt, c.furn, "chest_of_drawers", (x, CHEST[0], 0), rot_z=-math.pi / 2,
+                          size=(CHEST[1], CHEST_DEPTH, 0.78))
+    top = 0.78
+    # standing frames, facing west: (along the chest, from the wall, size, wood, photo, turn)
+    frames = [
+        (0.42, 0.16, (0.2, 0.25), "walnut", "snapshot_3", 0.1),
+        (0.22, 0.12, (0.13, 0.18), "frame_black", "snapshot", -0.15),
+        (0.05, 0.2, (0.18, 0.13), "oak", "snapshot_2", 0.05),
+        (-0.12, 0.1, (0.24, 0.3), "frame_black", "snapshot_4", -0.06),
+        (-0.3, 0.22, (0.1, 0.15), "oak", "snapshot_3", 0.25),
+        (-0.45, 0.14, (0.16, 0.2), "walnut", "snapshot", -0.2),
+    ]
+    for i, (along, back, size, wood, photo, turn) in enumerate(frames):
+        desk.photo_frame(mt, c.props, f"chest_frame_{i}", (x - CHEST_DEPTH / 2 + back, CHEST[0] + along, top),
+                         rot_z=-math.pi / 2 + turn, size=size, wood=wood, photo=photo)
+    desk.frame_stack(mt, c.props, "chest_frame_pile", (x - 0.06, CHEST[0] + 0.58, top), rot_z=0.3,
+                     sizes=[(0.3, 0.24), (0.25, 0.2), (0.2, 0.25)])
+
+
 def build_lamp(c):
     imported.floor_lamp(c.m, c.furn, "floor_lamp", (*LAMP, 0))
 
@@ -474,7 +516,7 @@ def build_tour(c):
     # No photos show the south wall (the door's is presumed), so the tour never faces it.
     tour.unseen_wall((-W / 2, -D / 2), (W / 2, -D / 2))
     # minimap moves land facing the north-west window (the one by the bookshelf), centred
-    tour.arrive_facing((NW_WINDOW[0], D / 2, (0.85 + 2.3) / 2))
+    tour.arrive_facing((NW_WINDOW[0], D / 2, (NW_SILL + HEAD) / 2))
     tour.viewpoint("office", "Office", (0.35, -1.65), 0, look_at=(DESK_X, WALL))
     # sharper (4096 px faces) so the featured books' spines read when zoomed in
     tour.viewpoint("bookshelf", "Bookshelf", (-1.25, 0.3), 1, look_at=(-W / 2, 0.3), face_size=4096)

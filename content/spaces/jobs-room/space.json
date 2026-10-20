@@ -2,7 +2,7 @@
   "slug": "jobs-room",
   "title": "The Jobs Room",
   "plan": {
-    "image": "plan.webp?v=31e3e61498",
+    "image": "plan.webp?v=f1d6f7517c",
     "center": [
       0,
       0
@@ -23,19 +23,19 @@
       {
         "wall": "N",
         "kind": "window",
-        "center": 2.07,
+        "center": 2.191,
         "width": 1.418
       },
       {
         "wall": "E",
         "kind": "window",
-        "center": 1.036,
+        "center": 1.137,
         "width": 1.426
       },
       {
         "wall": "S",
         "kind": "door",
-        "center": -1.18,
+        "center": 1.465,
         "width": 1.418
       }
     ],
@@ -121,6 +121,27 @@
           [
             2.369,
             -0.599
+          ]
+        ]
+      },
+      {
+        "name": "chest_of_drawers",
+        "points": [
+          [
+            2.705,
+            -0.539
+          ],
+          [
+            3.191,
+            -0.539
+          ],
+          [
+            3.191,
+            -1.977
+          ],
+          [
+            2.705,
+            -1.977
           ]
         ]
       },
@@ -492,11 +513,11 @@
         -1.65,
         1.6
       ],
-      "pano": "panos/office.webp?v=66dddf47b6",
+      "pano": "panos/office.webp?v=c34a52e190",
       "initialYaw": -5.64,
       "arrive": {
         "yaw": -27.93,
-        "pitch": -0.33
+        "pitch": 0.08
       },
       "yawRange": [
         -98.02,
@@ -514,9 +535,9 @@
         ],
         "bleed": 1,
         "format": "webp",
-        "preview": "panos/office/preview.webp?v=01f569dc1c",
+        "preview": "panos/office/preview.webp?v=70f56fdeaa",
         "previewSize": 256,
-        "version": "a6c1229723"
+        "version": "502f6a58c1"
       }
     },
     {
@@ -527,11 +548,11 @@
         0.3,
         1.6
       ],
-      "pano": "panos/bookshelf.webp?v=d723e41072",
+      "pano": "panos/bookshelf.webp?v=a8997ee97d",
       "initialYaw": -90.0,
       "arrive": {
         "yaw": -12.62,
-        "pitch": -0.76
+        "pitch": 0.19
       },
       "yawRange": [
         -141.48,
@@ -549,9 +570,9 @@
         ],
         "bleed": 1,
         "format": "webp",
-        "preview": "panos/bookshelf/preview.webp?v=7792ea50fd",
+        "preview": "panos/bookshelf/preview.webp?v=0c7cfebeae",
         "previewSize": 256,
-        "version": "5743bd6b4e"
+        "version": "5540eb7d85"
       }
     },
     {
@@ -562,11 +583,11 @@
         0.55,
         1.6
       ],
-      "pano": "panos/desk.webp?v=49259209f4",
+      "pano": "panos/desk.webp?v=cca43e1686",
       "initialYaw": -31.36,
       "arrive": {
         "yaw": -58.53,
-        "pitch": -0.47
+        "pitch": 0.12
       },
       "yawRange": [
         -123.05,
@@ -584,9 +605,9 @@
         ],
         "bleed": 1,
         "format": "webp",
-        "preview": "panos/desk/preview.webp?v=0cf99a076d",
+        "preview": "panos/desk/preview.webp?v=71dd7e4376",
         "previewSize": 256,
-        "version": "eeeb83c0a7"
+        "version": "2822e914cd"
       }
     },
     {
@@ -597,11 +618,11 @@
         -1.05,
         1.6
       ],
-      "pano": "panos/window.webp?v=8dd6ee6ad1",
-      "initialYaw": 26.72,
+      "pano": "panos/window.webp?v=0d973b78c9",
+      "initialYaw": 25.65,
       "arrive": {
         "yaw": -50.0,
-        "pitch": -0.29
+        "pitch": 0.07
       },
       "yawRange": [
         -101.62,
@@ -619,28 +640,28 @@
         ],
         "bleed": 1,
         "format": "webp",
-        "preview": "panos/window/preview.webp?v=038f50eae1",
+        "preview": "panos/window/preview.webp?v=3ed0c3d4e1",
         "previewSize": 256,
-        "version": "68d1080bb0"
+        "version": "f1aad151a5"
       }
     },
     {
       "slug": "entrance",
       "title": "Entrance",
       "position": [
-        -1.18,
+        1.465,
         -1.55,
         1.6
       ],
-      "pano": "panos/entrance.webp?v=fd63aa6e0e",
-      "initialYaw": 17.33,
+      "pano": "panos/entrance.webp?v=e9bf7ec9d4",
+      "initialYaw": -21.93,
       "arrive": {
-        "yaw": -7.46,
-        "pitch": -0.38
+        "yaw": -40.22,
+        "pitch": 0.07
       },
       "yawRange": [
-        -106.54,
-        97.8
+        -97.33,
+        109.07
       ],
       "tiles": {
         "path": "panos/entrance",
@@ -654,9 +675,9 @@
         ],
         "bleed": 1,
         "format": "webp",
-        "preview": "panos/entrance/preview.webp?v=a4a0688788",
+        "preview": "panos/entrance/preview.webp?v=5b309b699b",
         "previewSize": 256,
-        "version": "dfa7e2a37d"
+        "version": "ba2e4bf0ad"
       }
     }
   ],
@@ -694,9 +715,9 @@
           "distance": 5.351
         },
         "entrance": {
-          "yaw": -42.99,
-          "pitch": 1.07,
-          "distance": 2.67
+          "yaw": -66.37,
+          "pitch": 0.59,
+          "distance": 4.873
         }
       },
       "focus": {
@@ -744,7 +765,7 @@
                 93,
                 346
               ],
-              "image": "details/bookshelf/items/autobiography-of-a-yogi/patch-w.webp?v=7a0f3c0761"
+              "image": "details/bookshelf/items/autobiography-of-a-yogi/patch-w.webp?v=7f3d3db2f5"
             }
           ]
         },
@@ -786,7 +807,7 @@
                 85,
                 299
               ],
-              "image": "details/bookshelf/items/king-lear/patch-w.webp?v=6d4cd4be91"
+              "image": "details/bookshelf/items/king-lear/patch-w.webp?v=da2c9a3890"
             }
           ]
         },
@@ -828,7 +849,7 @@
                 90,
                 379
               ],
-              "image": "details/bookshelf/items/dylan-thomas-collected-poems/patch-w.webp?v=348bc40191"
+              "image": "details/bookshelf/items/dylan-thomas-collected-poems/patch-w.webp?v=99829d3450"
             }
           ]
         },
@@ -870,7 +891,7 @@
                 99,
                 279
               ],
-              "image": "details/bookshelf/items/nineteen-eighty-four/patch-w.webp?v=57542d22bd"
+              "image": "details/bookshelf/items/nineteen-eighty-four/patch-w.webp?v=aa8e5830bf"
             }
           ]
         },
@@ -912,14 +933,14 @@
                 135,
                 351
               ],
-              "image": "details/bookshelf/items/the-innovators-dilemma/patch-w.webp?v=1072b19692"
+              "image": "details/bookshelf/items/the-innovators-dilemma/patch-w.webp?v=92c6e03ee7"
             }
           ]
         }
       ],
       "detail": {
         "images": [
-          "details/bookshelf/closeup-1.webp?v=9cc801093d"
+          "details/bookshelf/closeup-1.webp?v=3f54affad9"
         ]
       }
     },
@@ -951,17 +972,17 @@
           "distance": 1.682
         },
         "entrance": {
-          "yaw": 18.0,
-          "pitch": -4.8,
-          "distance": 3.587
+          "yaw": -24.36,
+          "pitch": -4.6,
+          "distance": 3.744
         }
       },
       "detail": {
         "images": [
-          "details/display/closeup-1.webp?v=7cd6360c5e",
-          "details/display/closeup-2.webp?v=cddac162a6"
+          "details/display/closeup-1.webp?v=7381e70436",
+          "details/display/closeup-2.webp?v=a650edd5a1"
         ],
-        "model": "details/display/model.glb?v=001c50c394"
+        "model": "details/display/model.glb?v=9ce7aac95d"
       }
     },
     {
@@ -992,9 +1013,9 @@
           "distance": 1.583
         },
         "entrance": {
-          "yaw": 23.55,
-          "pitch": -10.66,
-          "distance": 3.73
+          "yaw": -19.34,
+          "pitch": -10.97,
+          "distance": 3.627
         }
       },
       "playlist": "09XZ2JIqeA6kxT3NhsM9iG"
@@ -1032,17 +1053,17 @@
           "distance": 2.164
         },
         "entrance": {
-          "yaw": 48.63,
+          "yaw": -51.66,
           "pitch": 0.0,
-          "distance": 1.667
+          "distance": 1.776
         }
       },
       "detail": {
         "images": [
-          "details/tripod/closeup-1.webp?v=6cf34e8c87",
-          "details/tripod/closeup-2.webp?v=cb88c54649"
+          "details/tripod/closeup-1.webp?v=faf73970cd",
+          "details/tripod/closeup-2.webp?v=53ae7ae2d3"
         ],
-        "model": "details/tripod/model.glb?v=461bfc1863"
+        "model": "details/tripod/model.glb?v=5ff4a1f50f"
       }
     },
     {
@@ -1053,29 +1074,29 @@
       "summary": "",
       "position": [
         3.1,
-        1.036,
+        1.137,
         1.85
       ],
       "views": {
         "bookshelf": {
-          "yaw": 80.4,
-          "pitch": 3.24,
-          "distance": 4.419
+          "yaw": 79.11,
+          "pitch": 3.23,
+          "distance": 4.437
         },
         "desk": {
-          "yaw": 77.27,
-          "pitch": 6.47,
-          "distance": 2.218
+          "yaw": 74.73,
+          "pitch": 6.4,
+          "distance": 2.243
         },
         "window": {
-          "yaw": 24.49,
-          "pitch": 6.23,
-          "distance": 2.305
+          "yaw": 23.48,
+          "pitch": 5.99,
+          "distance": 2.397
         },
         "entrance": {
-          "yaw": 58.86,
-          "pitch": 2.86,
-          "distance": 5.006
+          "yaw": 31.33,
+          "pitch": 4.54,
+          "distance": 3.155
         }
       }
     },
@@ -1086,30 +1107,30 @@
       "icon": "door",
       "summary": "",
       "position": [
-        -1.18,
+        1.465,
         -2.1,
         1.4
       ],
       "views": {
         "office": {
-          "yaw": -106.39,
-          "pitch": -7.15,
-          "distance": 1.607
+          "yaw": 111.99,
+          "pitch": -9.45,
+          "distance": 1.219
         },
         "bookshelf": {
-          "yaw": 178.32,
-          "pitch": -4.76,
-          "distance": 2.409
+          "yaw": 131.48,
+          "pitch": -3.16,
+          "distance": 3.629
         },
         "desk": {
-          "yaw": -141.22,
-          "pitch": -3.37,
-          "distance": 3.405
+          "yaw": 169.01,
+          "pitch": -4.24,
+          "distance": 2.707
         },
         "window": {
-          "yaw": -107.5,
-          "pitch": -3.28,
-          "distance": 3.497
+          "yaw": -146.86,
+          "pitch": -9.06,
+          "distance": 1.27
         },
         "entrance": {
           "yaw": 180.0,

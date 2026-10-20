@@ -65,6 +65,8 @@ def arch_materials():
     return {
         "arch_putty": _arch_mat("arch_putty", (0.025, 0.025, 0.024), 0.6),  # painted over, like the frames
         "arch_void": _arch_mat("arch_void", (0.02, 0.012, 0.008), 0.9),  # behind board gaps
+        "arch_tile": _arch_mat("arch_tile", (0.86, 0.86, 0.84), 0.12),  # glazed white sill tiles
+        "arch_grout": _arch_mat("arch_grout", (0.62, 0.61, 0.58), 0.8),
         # ceiling boards: the ceiling wood without its painted-on plank joints (boards are real here)
         "arch_ceiling_boards": materials.ceiling_boards(),
     }
@@ -372,13 +374,25 @@ class Room:
         _finish(frame, name, self.col, centre, rot, no_bevel=False)
         _finish(glass, f"{name}_glass", self.col, centre, rot)
 
-        # sill board with a bullnose, from the frame out over the wall face (with horns)
+        # sill board with a bullnose, from the frame out over the wall face (with horns),
+        # or (tiled_sill) a deep ledge of glazed white tiles on a grout bed
         sb = Builder()
         proud = 0.032
         depth = inset + proud + 0.03
         y0 = 0.03  # under the frame's web
-        _sweep(sb, _bullnose(depth, sill_t), (-w / 2 - 0.04, y0, o["sill"]), (w / 2 + 0.04, y0, o["sill"]),
-               (0, -1, 0), Z, m["sash_white"])
+        if o.get("tiled_sill"):
+            x0, x1 = -w / 2 - 0.04, w / 2 + 0.04
+            sb.box((x1 - x0, depth, sill_t), ((x0 + x1) / 2, y0 - depth / 2, o["sill"] + sill_t / 2), m["arch_grout"])
+            tile, grout = 0.15, 0.004
+            nx, ny = max(1, round((x1 - x0) / tile)), max(1, round(depth / tile))
+            tx, ty = (x1 - x0) / nx, depth / ny
+            for i in range(nx):
+                for j in range(ny):
+                    sb.box((tx - grout, ty - grout, 0.008),
+                           (x0 + tx * (i + 0.5), y0 - ty * (j + 0.5), o["sill"] + sill_t + 0.004), m["arch_tile"])
+        else:
+            _sweep(sb, _bullnose(depth, sill_t), (-w / 2 - 0.04, y0, o["sill"]), (w / 2 + 0.04, y0, o["sill"]),
+                   (0, -1, 0), Z, m["sash_white"])
         _finish(sb, f"{name}_sill", self.col, centre, rot, smooth=35)
 
         # Cycles light portal just outside the glass

@@ -158,13 +158,18 @@ def packed_image(name, rgb):
 
 
 def _desktop(name="hero_desktop", w=960, h=600):
-    """A believable desktop for the lit screen: a forest photo wallpaper, a thin
-    menu bar and a few abstract windows (photo thumbnails, grey text lines).
-    Generated and packed into the .blend (and the .glb). No real UI, text or logos."""
+    """The lit screen's desktop: the site owner's Mac OS X desktop (asset screen_desktop),
+    fitted to the 16:10 screen. Without it, a generated stand-in: a forest photo wallpaper,
+    a thin menu bar and a few abstract windows (no real UI, text or logos).
+    Packed into the .blend (and the .glb)."""
     img = bpy.data.images.get(name)
     if img:
         return img
     import numpy as np
+
+    shot = photo_pixels("screen_desktop", "desktop-screen.png", 1280)
+    if shot is not None:
+        return packed_image(name, resize(shot, 1280, 800).astype(np.float32))
 
     rng = np.random.default_rng(5)
     meadow = photo_pixels("print_autumn_meadow", "DSC_0415.jpg", 1600)

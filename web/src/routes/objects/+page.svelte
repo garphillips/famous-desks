@@ -21,7 +21,7 @@
 </script>
 
 <svelte:head>
-	<title>Objects</title>
+	<title>Objects · Famous Desks</title>
 </svelte:head>
 
 <div class="page">

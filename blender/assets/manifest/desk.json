@@ -102,5 +102,21 @@
         "supplied": "the site owner's copy (2560 x 1989)"
       }
     ]
+  },
+  "screen_desktop": {
+    "kind": "artwork",
+    "title": "Mac OS X desktop with a cherry-blossom wallpaper, for Jobs' display (as in the photo from his desk)",
+    "source": "Supplied by the site owner (starter/desktop-screen.png)",
+    "page": "",
+    "author": "Site owner",
+    "credit": "Contains Apple's Mac OS X interface, Apple logo and application icons (trademarks of Apple Inc.)",
+    "license": "all-rights-reserved",
+    "note": "Shows Apple trademarks and icons, unlicensed; replace the logo and dock with generic shapes if that becomes a concern.",
+    "files": [
+      {
+        "name": "desktop-screen.png",
+        "supplied": "the site owner's render (1088 x 608)"
+      }
+    ]
   }
 }
