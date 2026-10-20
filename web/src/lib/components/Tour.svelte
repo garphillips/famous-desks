@@ -718,8 +718,9 @@
 	}
 	.credit {
 		font-family: var(--mono);
-		font-size: 11px;
-		letter-spacing: 0.02em;
+		font-size: 10.5px;
+		letter-spacing: 0.08em;
+		text-transform: uppercase;
 		color: var(--ink-soft);
 		text-decoration: none;
 		text-shadow: 0 1px 8px rgba(0, 0, 0, 0.6);
