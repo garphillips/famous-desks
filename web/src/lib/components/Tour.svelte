@@ -706,6 +706,8 @@
 		gap: 16px;
 		padding: 24px 28px;
 		pointer-events: none;
+		/* the minimap's raised disc (it grows over the room) stays below the book and detail panels */
+		isolation: isolate;
 	}
 	.bottom > * {
 		pointer-events: auto;
