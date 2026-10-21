@@ -22,7 +22,10 @@ const OPTIONS = {
 	space: { type: 'string', default: 'jobs-room' },
 	turn: { type: 'string' },
 	hotspot: { type: 'string' },
+	yaw: { type: 'string' },
+	pitch: { type: 'string' },
 	fov: { type: 'string' },
+	name: { type: 'string' },
 	from: { type: 'string' },
 	viewpoint: { type: 'string' },
 	frames: { type: 'string' },
@@ -54,16 +57,21 @@ const COMMANDS = {
 	},
 
 	view: {
-		usage: 'view <viewpoint> [--turn <px>] [--hotspot <slug>] [--fov <deg>] [--size ...]',
-		about: 'Screenshot a viewpoint, optionally aimed at a hotspot, zoomed, or turned by dragging.',
+		usage: 'view <viewpoint> [--yaw <deg> [--pitch <deg>] | --hotspot <slug>] [--turn <px>] [--fov <deg>] [--name <file-tag>] [--size ...]',
+		about: 'Screenshot a viewpoint, optionally aimed at a compass bearing or a hotspot, zoomed, or turned by dragging.',
 		async run(ctx, [vp]) {
 			if (!vp) throw new Usage('view needs a viewpoint (office, bookshelf, desk, window, entrance)');
+			const { yaw, pitch, hotspot, fov } = ctx.opts;
+			if (yaw && hotspot) throw new Usage('view takes --yaw or --hotspot, not both');
+			for (const [k, v] of Object.entries({ yaw, pitch, fov })) if (v != null && !Number.isFinite(Number(v))) throw new Usage(`--${k} must be a number of degrees`);
 			const q = new URLSearchParams();
-			if (ctx.opts.hotspot) q.set('h', ctx.opts.hotspot);
-			if (ctx.opts.fov) q.set('fov', ctx.opts.fov);
+			if (hotspot) q.set('h', hotspot);
+			if (yaw != null) q.set('yaw', yaw);
+			if (pitch != null) q.set('pitch', pitch);
+			if (fov) q.set('fov', fov);
 			const route = `/${ctx.opts.space}/${vp}${q.size ? `?${q}` : ''}`;
 			const dx = Number(ctx.opts.turn ?? 0);
-			const name = [vp, ctx.opts.hotspot, ctx.opts.fov && `fov${ctx.opts.fov}`, dx && `t${dx}`].filter(Boolean).join('-');
+			const name = ctx.opts.name ?? [vp, hotspot, yaw != null && `y${yaw}`, pitch != null && `p${pitch}`, fov && `fov${fov}`, dx && `t${dx}`].filter(Boolean).join('-');
 			await ctx.eachSize(async (page, size) => {
 				await goto(page, ctx.url(route));
 				await ctx.pano(page, size);
@@ -320,10 +328,11 @@ const COMMANDS = {
 
 	sheet: {
 		usage: 'sheet <img...> [--out file.png] [--labels "a,b,..."] [--cols N] [--width px] [--title text]',
-		about: 'Compose images into a labelled contact sheet (e.g. a render next to its reference photo).',
-		async run(ctx, images) {
-			if (!images.length) throw new Usage('sheet needs at least one image');
-			const missing = images.filter((f) => !fs.existsSync(f));
+		about: 'Compose images into a labelled contact sheet (e.g. a render next to its reference photo); "-" leaves a cell empty.',
+		async run(ctx, args) {
+			if (!args.length) throw new Usage('sheet needs at least one image');
+			const images = args.map((f) => (f === '-' ? null : f));
+			const missing = images.filter((f) => f && !fs.existsSync(f));
 			if (missing.length) throw new Usage(`no such image: ${missing.join(', ')}`);
 			const out = ctx.opts.out ?? path.join(HERE, 'out', 'sheet.png');
 			ctx.files.push(await contactSheet(ctx.browser, images, {

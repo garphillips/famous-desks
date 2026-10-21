@@ -31,6 +31,33 @@ cd web && npm run dev                  # tour at http://localhost:5173
 The website reads `content/` directly (served at `/spaces/...`). Web stack:
 SvelteKit 2 + Vite 6 (Node 20 compatible) + Three.js, built as a static site.
 
+## Previewing a room change
+
+```sh
+(cd web && npm ci) && (cd tools/check && npm ci)   # once
+scripts/preview.sh jobs_room office,desk            # draft-render office + desk, sheet their views
+scripts/preview.sh jobs_room                        # every listed view (renders all their viewpoints)
+scripts/preview.sh jobs_room --no-render            # sheet what content/ holds now (a "before")
+scripts/preview.sh jobs_room --list                 # the room's comparison views
+```
+
+One command instead of five: it draft-renders the viewpoints (`pipeline.sh --draft --only ...`,
+about 1.5 min a viewpoint, keeping the Mac awake), starts a dev server for this checkout if none
+is running (and stops it after), screenshots each comparison view with `tools/check view`, and
+writes one sheet of each view beside its reference photo to `tools/check/out/preview/`
+(gitignored), which it opens. `--views a,b` picks views by name, `--restore` discards the draft
+renders afterwards, `--no-open` doesn't open the sheet, `--help` lists the rest.
+
+The views live beside the room in `blender/rooms/<room>.views.json`: a name, a viewpoint, an
+aim (`yaw`/`pitch` in compass degrees, or a `hotspot` slug, or a `turn` in drag px), an optional
+`fov`, and an optional `ref` photo (absolute, `~/...`, or relative to the main checkout's private
+`starter/`; photos never go in the repo). It's JSON rather than Python because the room scripts
+import `bpy`, so only Blender can read them.
+
+A draft leaves low-quality renders in `content/`: run the full render before deploying, or
+`git checkout -- content/spaces/<space> content/spaces/index.json` to discard them
+(`scripts/deploy.sh` refuses to deploy until then; the preview reminds you).
+
 ## Deploying
 
 The site is famousdesks.com, served as Cloudflare Workers static assets (`web/wrangler.jsonc`).

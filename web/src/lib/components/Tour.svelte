@@ -177,7 +177,12 @@
 					viewer.lookAt(target.views[v.slug].yaw, Math.max(-20, Math.min(20, target.views[v.slug].pitch)));
 					pinned = target.slug;
 				} else {
-					viewer.lookAt(v.initialYaw);
+					// ?yaw=<deg>&pitch=<deg> opens facing a compass bearing (clockwise from north),
+					// e.g. for screenshots to compare with photos (tools/check view --yaw)
+					const q = page.url.searchParams;
+					const yaw = q.get('yaw') ? Number(q.get('yaw')) : NaN;
+					if (Number.isFinite(yaw)) viewer.lookAt(yaw, Number(q.get('pitch')) || 0);
+					else viewer.lookAt(v.initialYaw);
 				}
 				// ?fov=<degrees> opens zoomed in (e.g. with ?h= to look closely at a hotspot)
 				const fov = Number(page.url.searchParams.get('fov'));

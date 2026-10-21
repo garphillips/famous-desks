@@ -1,0 +1,50 @@
+{
+  "about": "Views scripts/preview.sh screenshots after a draft render, each beside its reference photo. Aim with yaw/pitch (compass degrees, clockwise from north; pitch up is positive), or hotspot (a slug), plus an optional turn (drag px). fov is vertical degrees (the site opens at 75). ref is a photo path: absolute, ~/..., or relative to the main checkout's private starter/ folder. The site clamps yaw so the frame stays inside the viewpoint's yaw range.",
+  "space": "jobs-room",
+  "views": [
+    {
+      "name": "office-desk",
+      "viewpoint": "office",
+      "yaw": -8,
+      "pitch": -12,
+      "fov": 70,
+      "ref": "Upscaled facing south.png",
+      "note": "the desk on the north wall"
+    },
+    {
+      "name": "office-ne-corner",
+      "viewpoint": "office",
+      "yaw": 37,
+      "pitch": -5,
+      "fov": 70,
+      "ref": "Upscaled facing south.png",
+      "note": "the corner windows (right of the photo)"
+    },
+    {
+      "name": "bookshelf-east",
+      "viewpoint": "bookshelf",
+      "yaw": 90,
+      "pitch": -5,
+      "fov": 70,
+      "ref": "~/Downloads/from desk.webp",
+      "note": "east past the desk"
+    },
+    {
+      "name": "desk-display",
+      "viewpoint": "desk",
+      "hotspot": "display",
+      "fov": 50,
+      "ref": "upscaled facing north.png",
+      "note": "the display"
+    },
+    {
+      "name": "window-chest",
+      "viewpoint": "window",
+      "yaw": 115,
+      "pitch": -30,
+      "fov": 75,
+      "ref": "~/Downloads/from desk.webp",
+      "note": "the chest of drawers in the south-east corner"
+    }
+  ]
+}

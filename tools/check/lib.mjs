@@ -282,6 +282,8 @@ export async function contactSheet(browser, images, { out, labels = [], cols, wi
 	const esc = (s) => String(s).replace(/[&<>"]/g, (c) => `&#${c.charCodeAt(0)};`);
 	const cells = images
 		.map((f, i) => {
+			// null: an empty cell (keeps a grid's rows aligned, e.g. a render with no photo)
+			if (f == null) return `<figure class="empty"><figcaption>${esc(labels[i] ?? '')}</figcaption></figure>`;
 			const src = `data:image/${type(f)};base64,${fs.readFileSync(f).toString('base64')}`;
 			return `<figure><img src="${src}"><figcaption>${esc(labels[i] ?? path.basename(f))}</figcaption></figure>`;
 		})
@@ -293,6 +295,7 @@ export async function contactSheet(browser, images, { out, labels = [], cols, wi
 		figure { margin: 0; }
 		img { display: block; width: 100%; height: auto; background: #222; }
 		figcaption { padding: 6px 2px 0; }
+		.empty { display: flex; align-items: center; justify-content: center; background: #1a1a1a; color: #888; min-height: 120px; }
 	</style>${title ? `<h1>${esc(title)}</h1>` : ''}<div class="grid">${cells}</div>`;
 	const page = await browser.newPage();
 	await page.setViewport({ width, height: 400 });

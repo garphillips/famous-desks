@@ -22,6 +22,7 @@ and, for most commands, the dev server running (`cd web && npm run dev -- --port
 | Changed yaw limits or a viewpoint's camera | `edges` |
 | Changed the music player or speaker ripples | `music --size desktop,phone` |
 | Something looks juddery | `filmstrip <path> --turn -600` (or `--click <selector>`) and read the sheet |
+| Changed a room | `scripts/preview.sh <room> [viewpoints]` (draft render, `view` and `sheet` beside the photos in one go; see the root README) |
 | Re-rendered a room | `view <viewpoint> ...` for the angles you care about, then `sheet` them next to the reference photos |
 | After a deploy | `smoke --base https://famousdesks.com --size all` (read-only) |
 
@@ -36,10 +37,12 @@ desktop|tablet|phone|all` (or a comma list; default desktop), `--out <dir>`
 
 - **`shot <url-or-path>`**: screenshot a page once its panorama has loaded.
   `shot /jobs-room/desk --size all`
-- **`view <viewpoint> [--turn <px>] [--hotspot <slug>] [--fov <deg>]`**: screenshot a
-  viewpoint, aimed at a hotspot (`?h=`), zoomed (`?fov=`) and/or turned by a drag.
-  Dragging right turns the view left, so `--turn -900` looks further right.
-  `view desk --hotspot display --fov 45`, `view window --turn -900`
+- **`view <viewpoint> [--yaw <deg> [--pitch <deg>] | --hotspot <slug>] [--turn <px>] [--fov <deg>] [--name <tag>]`**:
+  screenshot a viewpoint, facing a compass bearing (`?yaw=&pitch=`: degrees clockwise from
+  north, pitch up positive; the site clamps it to the viewpoint's yaw range) or a hotspot
+  (`?h=`), zoomed (`?fov=`, vertical degrees) and/or turned by a drag. Dragging right turns
+  the view left, so `--turn -900` looks further right. `--name` sets the file name.
+  `view bookshelf --yaw 90 --fov 70`, `view desk --hotspot display --fov 45`, `view window --turn -900`
 - **`closeup <title or slug> [--from <viewpoint>]`**: open a viewpoint facing the
   hotspot, click (tap) its pin, wait for the flight, screenshot the close-up, then
   open "Close-ups and 3D" (or, on the bookshelf, the first book) and screenshot that.
@@ -63,7 +66,7 @@ desktop|tablet|phone|all` (or a comma list; default desktop), `--out <dir>`
   report data-pano, viewpoint and pin counts, failed requests and page errors.
 - **`sheet <img...> [--out file.png] [--labels a,b,...] [--cols N] [--width px] [--title text]`**:
   compose images into a labelled grid (rendered as HTML in the same headless Chrome,
-  so no Python needed). Here `--out` is the sheet file (default `tools/check/out/sheet.png`).
+  so no Python needed; `-` leaves a cell empty). Here `--out` is the sheet file (default `tools/check/out/sheet.png`).
   `sheet out/view/view-desk-desktop.png ~/refs/desk.jpg --labels render,photo --cols 2`
 
 ## Output
