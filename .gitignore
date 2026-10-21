@@ -18,3 +18,4 @@ __pycache__/
 
 # Cloudflare (wrangler) local state
 .wrangler/
+.claude/scheduled_tasks.lock
