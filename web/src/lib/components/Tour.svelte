@@ -12,6 +12,7 @@
 	import Icon from './Icon.svelte';
 	import DetailPanel from './DetailPanel.svelte';
 	import BookPanel from './BookPanel.svelte';
+	import LetterPanel from './LetterPanel.svelte';
 	import MusicPlayer from './MusicPlayer.svelte';
 	import { site } from '$lib/site';
 	import SpeakerRipples from './SpeakerRipples.svelte';
@@ -35,6 +36,8 @@
 	let pinned: string | null = $state(null);
 	let detail: Hotspot | null = $state(null);
 	let detailImage = $state('');
+	/** An open letter, and where its envelope lies on screen. */
+	let letter: { hotspot: Hotspot; from: { x: number; y: number } } | null = $state(null);
 	// The room's playlist: its player sits in the corner, and ripples spread from the speaker while it plays.
 	const music = $derived(space.hotspots.find((h) => h.playlist));
 	let playing = $state(false);
@@ -110,6 +113,8 @@
 				if (item) openBook(item);
 			}
 		});
+		// a letter's typewriter face, fetched now so its envelope opens without a pause
+		if (space.hotspots.some((h) => h.letter)) document.fonts.load('16px "Special Elite"').catch(() => {});
 		const onResize = () => shelf?.relayout(panelLayout());
 		window.addEventListener('resize', onResize);
 		return () => {
@@ -238,6 +243,12 @@
 			if (h.target) goto(h.arrive ? `/${h.target}/${h.arrive}` : `/${h.target}`);
 			return;
 		}
+		if (h.letter) {
+			const m = markers.find((x) => x.hotspot.slug === h.slug);
+			pinned = peek = null;
+			letter = { hotspot: h, from: m ? { x: m.x, y: m.y } : { x: innerWidth / 2, y: innerHeight / 2 } };
+			return;
+		}
 		if (h.focus) {
 			pinned = peek = null;
 			if (h.focus.viewpoint === viewpoint.slug) startFocus(h);
@@ -341,7 +352,7 @@
 
 <svelte:window
 	onkeydown={(e) => {
-		if (e.key === 'Escape' && focus && !openItem) leaveFocus();
+		if (e.key === 'Escape' && focus && !openItem && !letter) leaveFocus();
 	}}
 />
 
@@ -413,7 +424,7 @@
 		focal={() => canvas.clientWidth / 2 / Math.tan((hfov * Math.PI) / 360)}
 	/>
 
-	<div class="markers" class:hidden={loading || moving || !!focus}>
+	<div class="markers" class:hidden={loading || moving || !!focus || !!letter}>
 		{#each markers as m (m.hotspot.slug)}
 			{#if m.visible}
 				<HotspotMarker
@@ -426,7 +437,7 @@
 					onunpeek={() => (peek = null)}
 					ongrab={(e) => viewer?.grab(e)}
 					ontoggle={() => {
-						if (pinned === m.hotspot.slug || m.hotspot.focus) openDetail(m.hotspot);
+						if (pinned === m.hotspot.slug || m.hotspot.focus || m.hotspot.letter) openDetail(m.hotspot);
 						else pinned = m.hotspot.slug;
 					}}
 					onopen={() => openDetail(m.hotspot)}
@@ -480,6 +491,18 @@
 			shelfTitle={focus.title}
 			onclose={closeBook}
 			onstep={stepBook}
+		/>
+	{/if}
+
+	{#if letter}
+		<LetterPanel
+			title={letter.hotspot.title}
+			text={letter.hotspot.letter ?? ''}
+			from={letter.from}
+			onclose={() => {
+				letter = null;
+				canvas.focus();
+			}}
 		/>
 	{/if}
 

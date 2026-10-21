@@ -121,7 +121,7 @@ def remove_cube_face_camera():
 
 
 def hotspot(slug, title, loc, icon="eye", summary="", kind="hotspot", **extra):
-    """icon: 'eye' (look closer), 'info', 'music' or 'books'. kind: 'hotspot' or 'door' (links to another space).
+    """icon: 'eye' (look closer), 'info', 'music', 'books' or 'envelope'. kind: 'hotspot' or 'door' (links to another space).
 
     extra: e.g. target='<space>' for doors, model='<object name>' to export
     that object as details/<slug>/model.glb for the 3D view, or
@@ -129,7 +129,8 @@ def hotspot(slug, title, loc, icon="eye", summary="", kind="hotspot", **extra):
     view on portrait screens>]): clicking the hotspot
     moves to that viewpoint and zooms in on the target (e.g. a print on the wall), where the
     hotspot's items, if any (objects tagged item_of=<slug>, e.g. lib/featured.py's books), can be picked, or
-    playlist='<Spotify playlist id>' (with icon='music'): the hotspot opens its player.
+    playlist='<Spotify playlist id>' (with icon='music'): the hotspot opens its player, or
+    letter='<text>' (with icon='envelope'): clicking it opens the envelope on screen and unfolds the letter.
     """
     empty = bpy.data.objects.new(f"hs_{slug}", None)
     empty.empty_display_type = "SPHERE"

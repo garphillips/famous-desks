@@ -16,6 +16,7 @@ real-world furniture sizes where the sketch is only indicative.
 """
 
 import math
+import os
 import random
 
 import bpy
@@ -538,6 +539,11 @@ def build_tour(c):
                          "by reciting a verse of \"The Times They Are a-Changin'\". A few songs for the room, "
                          "starting with \"One Too Many Mornings\".",
                  playlist="09XZ2JIqeA6kxT3NhsM9iG")
+    # Gareth's letter to Steve, in the kraft envelope on the red notebook (desk pile 5): the site
+    # opens it on screen, so its words live in jobs_room.letter.txt and change without a render
+    with open(os.path.join(os.path.dirname(__file__), "jobs_room.letter.txt")) as fh:
+        letter = fh.read().strip()
+    tour.hotspot("letter", "A letter to Steve", (-0.25, 0.43, 0.8), icon="envelope", letter=letter)
     tour.hotspot("tripod", "Tripod", (TRIPOD_LOC[0], TRIPOD_LOC[1], 1.6), model="tripod")
     tour.hotspot("east_window", "Garden window", (W / 2 - 0.1, E_WINDOW[0], 1.85))
     tour.hotspot("entrance", "Entrance", (DOOR[0], -D / 2 + 0.05, 1.4), kind="door", icon="door",

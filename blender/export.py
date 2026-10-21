@@ -410,6 +410,8 @@ def main():
             entry["items"] = [item_entry(o, hs["slug"], out) for o in items]
         if hs.get("playlist"):
             entry["playlist"] = hs["playlist"]
+        if hs.get("letter"):
+            entry["letter"] = hs["letter"]
         if hs.get("target") is not None:
             entry["target"] = hs["target"]
             if hs["target"]:

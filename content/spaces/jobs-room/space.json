@@ -1029,6 +1029,41 @@
       "playlist": "09XZ2JIqeA6kxT3NhsM9iG"
     },
     {
+      "slug": "letter",
+      "title": "A letter to Steve",
+      "kind": "hotspot",
+      "icon": "envelope",
+      "summary": "",
+      "position": [
+        -0.25,
+        0.43,
+        0.8
+      ],
+      "views": {
+        "office": {
+          "yaw": -16.09,
+          "pitch": -20.28,
+          "distance": 2.308
+        },
+        "bookshelf": {
+          "yaw": 82.59,
+          "pitch": -38.43,
+          "distance": 1.287
+        },
+        "desk": {
+          "yaw": -95.71,
+          "pitch": -33.56,
+          "distance": 1.447
+        },
+        "window": {
+          "yaw": -58.34,
+          "pitch": -15.84,
+          "distance": 2.931
+        }
+      },
+      "letter": "Dear Steve,\n\nWe never crossed paths. We never would have. We come from totally different worlds, although I'd like to think we'd have got on.\n\nYou don't need me to tell you or anyone else the impact you had on everyone, directly or from a distance, knowingly or not.\n\nWhat I do know is that we didn't get to know you enough. I'm sure there are plenty of people who did, your family, your friends, your fellows.\n\nWe would have all benefitted from your beautiful perspective on AI had you been here to share it with us.\n\nThe times they are a-changing.\n\nAnyway, this one is for you.\n\nGareth"
+    },
+    {
       "slug": "tripod",
       "title": "Tripod",
       "kind": "hotspot",

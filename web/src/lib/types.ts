@@ -119,7 +119,7 @@ export interface Hotspot {
 	slug: string;
 	title: string;
 	kind: 'hotspot' | 'door';
-	icon: 'eye' | 'info' | 'door' | 'music' | 'books';
+	icon: 'eye' | 'info' | 'door' | 'music' | 'books' | 'envelope';
 	summary: string;
 	position: [number, number, number];
 	/** Only viewpoints the hotspot is visible from. */
@@ -137,6 +137,8 @@ export interface Hotspot {
 	items?: HotspotItem[];
 	/** Spotify playlist id: the hotspot opens a player for it. */
 	playlist?: string;
+	/** A letter (plain text, blank lines between paragraphs): the hotspot opens its envelope on screen. */
+	letter?: string;
 }
 
 export interface FloorPlan {

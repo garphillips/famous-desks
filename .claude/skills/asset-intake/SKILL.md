@@ -11,7 +11,7 @@ The user cares about licensing (a personal site that may earn money later). Ever
 - `CC0` and `CC-BY-4.0`: the default for textures, models, HDRIs, photos (Poly Haven is the usual source; record author and page).
 - `cover-art` (kind `cover`): publishers' covers from Open Library, shown only to identify a book.
 - `all-rights-reserved` (kind `artwork`): **only** with the user's explicit decision after you've flagged it. Current examples: the Ansel Adams print over the desk (NGA 66721, not open access), shown on the wall only, with no hotspot, close-up or caption; and the Mac OS X desktop on the display (Apple logo and icons), supplied by the user.
-- Fonts: OFL (Archivo, via Fontsource packages pinned exactly). Icons: Phosphor (MIT), inlined.
+- Fonts: OFL or Apache-2.0 (Archivo; Special Elite for the typewritten letter), via Fontsource packages pinned exactly. Icons: Phosphor (MIT), inlined.
 - Music: never hosted. Only Spotify's official embed.
 - Never NC licences for anything.
 
